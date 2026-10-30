@@ -16,7 +16,7 @@ describe("Lesson 1 — Find Middle C", () => {
   const lesson = PIANO_LESSONS[0];
 
   it("targets C4 and is worth exactly 10 XP", () => {
-    expect(lesson.task).toEqual({ kind: "play-note", target: 60 });
+    expect(lesson.steps.find((s) => s.kind === "play-note")).toMatchObject({ target: 60 });
     expect(lesson.xp).toBe(10);
   });
 
@@ -111,16 +111,23 @@ describe("levels", () => {
 });
 
 describe("lesson unlocking", () => {
-  it("opens lesson 1 first, and marks unbuilt lessons as coming soon", () => {
+  it("opens lesson 1 first and locks the rest", () => {
     expect(getLessonState(PIANO_LESSONS[0], {})).toBe("available");
-    expect(getLessonState(PIANO_LESSONS[1], {})).toBe("coming-soon");
+    expect(getLessonState(PIANO_LESSONS[1], {})).toBe("locked");
     expect(getNextLesson({})?.id).toBe("piano-1");
   });
 
-  it("marks completed lessons and has nothing playable left after lesson 1 (for now)", () => {
-    const done = { "piano-1": { completedAt: NOW.toISOString(), xpAwarded: 10 } };
+  it("unlocks lessons in order and finishes after lesson 5", () => {
+    const done: Record<string, unknown> = { "piano-1": true };
     expect(getLessonState(PIANO_LESSONS[0], done)).toBe("completed");
+    expect(getNextLesson(done)?.id).toBe("piano-2");
+    for (const id of ["piano-2", "piano-3", "piano-4", "piano-5"]) done[id] = true;
     expect(getNextLesson(done)).toBeUndefined();
+  });
+
+  it("still reports coming-soon for unbuilt lessons", () => {
+    const lessons = PIANO_LESSONS.map((l, i) => ({ ...l, playable: i === 0 }));
+    expect(getLessonState(lessons[1], { "piano-1": true }, lessons)).toBe("coming-soon");
   });
 
   it("locks a playable lesson until the previous one is complete", () => {

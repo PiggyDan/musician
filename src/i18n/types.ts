@@ -1,6 +1,25 @@
 import type en from "./dictionaries/en";
 
-export type Dictionary = typeof en;
+/** Text for one lesson step. Optional fields are used by specific step kinds. */
+export interface StepCopy {
+  eyebrow?: string;
+  title: string;
+  paragraphs?: string[];
+  prompt?: string;
+  inputs?: string;
+  tipTitle?: string;
+  tip?: string;
+  /** Button that leaves an explain step. */
+  start?: string;
+  /** Overrides for play-note feedback; {note} = what was played. */
+  success?: string;
+  wrongOctave?: string;
+  wrongNote?: string;
+}
+
+export type StepCopyKey = keyof (typeof en)["steps"];
+
+export type Dictionary = Omit<typeof en, "steps"> & { steps: Record<StepCopyKey, StepCopy> };
 
 export const LOCALES = ["en", "mn"] as const;
 export type Locale = (typeof LOCALES)[number];

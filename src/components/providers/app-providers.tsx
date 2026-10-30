@@ -31,7 +31,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = LOCALE_TAGS[locale];
-  }, [locale]);
+    // Runs after the hydrated (possibly Mongolian) render is committed.
+    if (hydrated) document.documentElement.classList.remove("locale-pending");
+  }, [locale, hydrated]);
 
   useEffect(() => {
     audioEngine.setVolume(volume);

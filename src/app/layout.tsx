@@ -39,12 +39,24 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
+/**
+ * Runs before first paint. Saved language lives in localStorage, which the
+ * server can't read, so a Mongolian learner would briefly see English. This
+ * sets <html lang> and hides the page until React has rendered in Mongolian
+ * (AppProviders removes the class; a timeout guarantees it never stays hidden).
+ */
+const LOCALE_BOOTSTRAP = `(function(){try{var s=JSON.parse(localStorage.getItem("musicpath:settings")||"null");if(s&&s.state&&s.state.locale==="mn"){var d=document.documentElement;d.lang="mn-MN";d.classList.add("locale-pending");setTimeout(function(){d.classList.remove("locale-pending")},2000)}}catch(e){}})();`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${display.variable} ${body.variable} ${mono.variable} h-full antialiased`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_BOOTSTRAP }} />
+      </head>
       <body className="flex min-h-full flex-col">
         <AppProviders>
           <SiteHeader />

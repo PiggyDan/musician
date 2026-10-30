@@ -126,3 +126,12 @@ export function offsetWhiteKeys(startMidi: Midi, count: number): Midi {
   }
   return midi;
 }
+
+export const NOTE_LETTERS = ["C", "D", "E", "F", "G", "A", "B"] as const;
+export type NoteLetter = (typeof NOTE_LETTERS)[number];
+
+/** The letter of a white key ("C" for 60), or null for black keys. */
+export function noteLetterOf(midi: Midi): NoteLetter | null {
+  if (isBlackKey(midi)) return null;
+  return pitchClassName(midi) as NoteLetter;
+}

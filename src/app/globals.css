@@ -113,6 +113,11 @@
   }
 }
 
+/* Set by the inline locale script until the saved language has rendered. */
+html.locale-pending body > * {
+  visibility: hidden;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

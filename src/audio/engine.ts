@@ -33,6 +33,7 @@ class AudioEngine {
   private tone: ToneModule | null = null;
   private voice: Voice | null = null;
   private master: import("tone").Volume | null = null;
+  private clicker: import("tone").Synth | null = null;
   private loadPromise: Promise<ToneModule> | null = null;
   private readyPromise: Promise<boolean> | null = null;
 
@@ -127,6 +128,16 @@ class AudioEngine {
     }
 
     this.setStatus("loading");
+    // iOS 17+: the "playback" audio session plays even when the ring/silent
+    // switch is set to silent. Older iOS ignores this (we show a hint instead).
+    const audioSession = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    if (audioSession) {
+      try {
+        audioSession.type = "playback";
+      } catch {
+        // Not supported — harmless.
+      }
+    }
     try {
       if (!this.voice) {
         // lookAhead 0 = notes start immediately; Tone's default (0.1s) suits
@@ -152,6 +163,13 @@ class AudioEngine {
     this.master.mute = this.volume <= 0.001;
     const limiter = new tone.Limiter(-1).connect(this.master);
     const reverb = new tone.Reverb({ decay: 2.6, preDelay: 0.01, wet: 0.18 }).connect(limiter);
+
+    // Metronome: a short, dry woodblock-like tick that bypasses the reverb.
+    this.clicker = new tone.Synth({
+      volume: -8,
+      oscillator: { type: "triangle" },
+      envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.02 },
+    }).connect(limiter);
 
     // A filtered additive tone with a fast "hammer" filter sweep: warm,
     // piano-like and cheap enough for 32 simultaneous voices.
@@ -256,6 +274,44 @@ class AudioEngine {
         (index * stagger + hold) * 1000,
       );
     });
+  }
+
+  /**
+   * Plays notes at given offsets (seconds from now) through the normal note
+   * path, so keys light up. Returns a function that cancels what hasn't played.
+   */
+  playTimed(notes: readonly { midi: Midi; at: number; duration: number }[]): () => void {
+    const timers: number[] = [];
+    for (const note of notes) {
+      timers.push(window.setTimeout(() => this.noteOn(note.midi, "demo", 0.7), note.at * 1000));
+      timers.push(
+        window.setTimeout(() => this.noteOff(note.midi, "demo"), (note.at + note.duration) * 1000),
+      );
+    }
+    return () => {
+      timers.forEach((id) => window.clearTimeout(id));
+      this.releaseSource("demo");
+    };
+  }
+
+  // ── Audio clock (metronome) ─────────────────────────────────────────────────
+
+  /** Current AudioContext time in seconds, or null before audio is running. */
+  audioTime(): number | null {
+    if (!this.tone || this.status !== "ready") return null;
+    return this.tone.getContext().currentTime;
+  }
+
+  /** How long after scheduling a sound actually leaves the speakers. */
+  outputLatencySec(): number {
+    if (!this.tone || this.status !== "ready") return 0;
+    const raw = this.tone.getContext().rawContext as AudioContext;
+    return (raw.outputLatency || 0) + (raw.baseLatency || 0);
+  }
+
+  /** Schedules a metronome tick at an AudioContext time. */
+  click(time: number, accent: boolean): void {
+    this.clicker?.triggerAttackRelease(accent ? 1760 : 1175, 0.03, time, accent ? 0.9 : 0.55);
   }
 
   private flushPending(): void {

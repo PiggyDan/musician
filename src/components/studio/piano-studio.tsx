@@ -12,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { MIDI_MAX, offsetWhiteKeys } from "@/lib/music/notes";
 import { useSettingsStore } from "@/store/settings";
 import { PageHeader } from "@/components/learn/page-header";
+import { AudioHint } from "@/components/ui/audio-hint";
 import { NoteReadout } from "@/components/piano/note-readout";
 import { PianoKeyboard } from "@/components/piano/piano-keyboard";
 import { useComputerKeyboard } from "@/components/piano/use-computer-keyboard";
@@ -113,6 +114,8 @@ export function PianoStudio() {
           size="lg"
         />
       </div>
+
+      <AudioHint className="mt-4" iosOnly />
 
       <div className="mt-6 grid gap-4 md:grid-cols-[1fr_auto]">
         <NoteReadout />

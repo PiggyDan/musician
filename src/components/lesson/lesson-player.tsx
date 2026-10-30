@@ -8,7 +8,7 @@ import { useI18n } from "@/i18n/use-i18n";
 import { useStoresHydrated } from "@/store/hydration";
 import { useProgressStore } from "@/store/progress";
 import { ButtonLink } from "@/components/ui/button";
-import { PlayNoteLesson } from "./play-note-lesson";
+import { LessonRunner } from "./lesson-runner";
 
 /** Resolves a lesson, checks it's unlocked, and renders the right lesson experience. */
 export function LessonPlayer({ slug }: { slug: string }) {
@@ -38,7 +38,7 @@ export function LessonPlayer({ slug }: { slug: string }) {
             <div className="skeleton h-12 w-2/3" />
             <div className="skeleton h-64 w-full rounded-3xl!" />
           </motion.div>
-        ) : state === "locked" || state === "coming-soon" || !lesson.task ? (
+        ) : state === "locked" || state === "coming-soon" ? (
           <motion.div
             key="unavailable"
             initial={{ opacity: 0, y: 12 }}
@@ -66,7 +66,7 @@ export function LessonPlayer({ slug }: { slug: string }) {
           </motion.div>
         ) : (
           <motion.div key="lesson" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <PlayNoteLesson lesson={lesson} target={lesson.task.target} />
+            <LessonRunner lesson={lesson} />
           </motion.div>
         )}
       </AnimatePresence>

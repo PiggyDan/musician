@@ -1,6 +1,13 @@
 import type { ProgressData } from "./progress";
 
-export type AchievementId = "first-note" | "hundred-notes" | "first-lesson" | "middle-c";
+export type AchievementId =
+  | "first-note"
+  | "hundred-notes"
+  | "first-lesson"
+  | "middle-c"
+  | "first-melody"
+  | "on-the-beat"
+  | "foundations-complete";
 
 export interface AchievementDefinition {
   id: AchievementId;
@@ -19,4 +26,11 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     isUnlocked: (s) => Object.keys(s.completedLessons).length >= 1,
   },
   { id: "middle-c", i18nKey: "middle-c", isUnlocked: (s) => Boolean(s.completedLessons["piano-1"]) },
+  { id: "first-melody", i18nKey: "first-melody", isUnlocked: (s) => Boolean(s.completedLessons["piano-3"]) },
+  { id: "on-the-beat", i18nKey: "on-the-beat", isUnlocked: (s) => Boolean(s.completedLessons["piano-4"]) },
+  {
+    id: "foundations-complete",
+    i18nKey: "foundations-complete",
+    isUnlocked: (s) => Boolean(s.completedLessons["piano-5"]),
+  },
 ];
