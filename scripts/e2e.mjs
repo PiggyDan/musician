@@ -759,6 +759,9 @@ try {
       for (const m of tune) await clickMidi(m);
       await sleep(1600);
       check(`${instrument}: lesson 2 complete (+15 XP)`, (await text()).includes("+15 XP earned"));
+      const dir = instrument === "ukulele" ? "guitar" : instrument;
+      const loaded = await evaluate(`performance.getEntriesByType('resource').filter(e => e.name.includes('/samples/${dir}/')).length`);
+      check(`${instrument}: real recorded samples loaded`, loaded > 0, `${loaded} files`);
     }
     await screenshot("flow-instrument");
 
@@ -785,7 +788,7 @@ try {
     await goto("/songs/musicpath--amazing-grace");
     await clickExact("Play");
     let heard = false;
-    for (let i = 0; i < 60 && !heard; i++) { heard = ((await evaluate(`[...document.querySelectorAll('.bg-spectrum.h-full')].find(e => e.offsetParent)?.style.width`)) ?? "0%") !== "0%"; await sleep(50); }
+    for (let i = 0; i < 200 && !heard; i++) { heard = ((await evaluate(`[...document.querySelectorAll('.bg-spectrum.h-full')].find(e => e.offsetParent)?.style.width`)) ?? "0%") !== "0%"; await sleep(50); }
     check("public-domain song plays the MusicPath performance", heard);
     await clickExact("Pause");
     check("public-domain song lists its arrangement and downloads", (await text()).includes("Open score") && (await text()).includes("MusicXML"));

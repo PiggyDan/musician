@@ -16,6 +16,31 @@ interface VoiceImpl {
 }
 
 /**
+ * Recorded instrument samples (FluidR3_GM soundfont, CC BY 3.0 — see
+ * public/samples/LICENSE.txt), self-hosted in /public/samples/<dir>/. One file
+ * every 3 semitones; Tone's Sampler pitch-shifts the nearest recording.
+ * General MIDI has no ukulele, so it uses the nylon-string guitar recordings.
+ */
+const SAMPLE_SETS: Record<VoiceId, { dir: string; lo: number; hi: number; release: number; volume: number }> = {
+  piano: { dir: "piano", lo: 24, hi: 108, release: 1.2, volume: -4 },
+  guitar: { dir: "guitar", lo: 36, hi: 84, release: 0.9, volume: -2 },
+  ukulele: { dir: "guitar", lo: 36, hi: 84, release: 0.6, volume: -2 },
+  violin: { dir: "violin", lo: 54, hi: 99, release: 0.4, volume: -4 },
+  cello: { dir: "cello", lo: 36, hi: 81, release: 0.5, volume: -2 },
+  harmonica: { dir: "harmonica", lo: 60, hi: 96, release: 0.2, volume: -6 },
+};
+const FLAT_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+
+function sampleUrls(lo: number, hi: number): Record<string, string> {
+  const urls: Record<string, string> = {};
+  for (let m = lo; m <= hi; m += 3) {
+    const name = `${FLAT_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+    urls[name] = `${name}.mp3`;
+  }
+  return urls;
+}
+
+/**
  * Who is holding a note: "keyboard", "pointer:3", "midi:<deviceId>", "demo".
  * A note sounds while at least one source holds it, so the same key pressed by
  * mouse and computer keyboard at once never double-triggers or sticks.
@@ -42,8 +67,12 @@ class AudioEngine {
   private tone: ToneModule | null = null;
   private voice: Voice | null = null;
   private voices: Partial<Record<VoiceId, VoiceImpl>> = {};
+  private samplers: Partial<Record<VoiceId, import("tone").Sampler>> = {};
+  private wantedVoices = new Set<VoiceId>(["piano"]);
+  private sampleOut: import("tone").ToneAudioNode | null = null;
   /** Which voice started each sounding note, so its release goes to the same voice. */
   private noteVoice = new Map<Midi, VoiceId>();
+  private noteRelease = new Map<Midi, (note: string) => void>();
   private master: import("tone").Volume | null = null;
   private clicker: import("tone").Synth | null = null;
   private loadPromise: Promise<ToneModule> | null = null;
@@ -207,6 +236,47 @@ class AudioEngine {
       releaseAll: () => piano.releaseAll(),
     };
     this.buildInstrumentVoices(tone, reverb);
+    this.sampleOut = reverb;
+    for (const voice of this.wantedVoices) this.loadSamples(voice);
+  }
+
+  /** Starts downloading an instrument's recordings (once audio is running). */
+  preloadVoice(voice: VoiceId): void {
+    this.wantedVoices.add(voice);
+    if (this.tone && this.sampleOut) this.loadSamples(voice);
+  }
+
+  /** Resolves once an instrument's recordings are loaded (or after `timeoutMs`). */
+  async waitForVoice(voice: VoiceId, timeoutMs = 4000): Promise<boolean> {
+    this.preloadVoice(voice);
+    const started = performance.now();
+    while (performance.now() - started < timeoutMs) {
+      if (this.samplers[voice]?.loaded) return true;
+      await new Promise((r) => window.setTimeout(r, 50));
+    }
+    return false;
+  }
+
+  private loadSamples(voice: VoiceId): void {
+    if (!this.tone || !this.sampleOut || this.samplers[voice]) return;
+    const set = SAMPLE_SETS[voice];
+    this.samplers[voice] = new this.tone.Sampler({
+      urls: sampleUrls(set.lo, set.hi),
+      baseUrl: `/samples/${set.dir}/`,
+      release: set.release,
+      volume: set.volume,
+      onerror: (error) => console.error(`[MusicPath] ${voice} samples failed to load`, error),
+    }).connect(this.sampleOut);
+  }
+
+  /** The recorded instrument if its samples are loaded; otherwise the synth stand-in. */
+  private play(voice: VoiceId): { attack: (note: string, v: number) => void; release: (note: string) => void } {
+    const sampler = this.samplers[voice];
+    if (sampler?.loaded) {
+      return { attack: (note, v) => sampler.triggerAttack(note, undefined, v), release: (note) => sampler.triggerRelease(note) };
+    }
+    if (!sampler) this.preloadVoice(voice);
+    return this.voices[voice] ?? this.voices.piano!;
   }
 
   /**
@@ -307,7 +377,9 @@ class AudioEngine {
       this.velocities.set(midi, v);
       this.noteVoice.set(midi, voice);
       if (this.voice && this.status === "ready") {
-        (this.voices[voice] ?? this.voices.piano)?.attack(midiToNoteName(midi), v);
+        const player = this.play(voice);
+        this.noteRelease.set(midi, player.release);
+        player.attack(midiToNoteName(midi), v);
       } else {
         this.pending.add(midi);
         void this.unlock();
@@ -325,10 +397,10 @@ class AudioEngine {
       this.held.delete(midi);
       // Pending notes stay queued so a tap before audio is ready still sounds.
       if (this.voice && !this.pending.has(midi)) {
-        const voice = this.noteVoice.get(midi) ?? "piano";
-        (this.voices[voice] ?? this.voices.piano)?.release(midiToNoteName(midi));
+        this.noteRelease.get(midi)?.(midiToNoteName(midi));
       }
       this.noteVoice.delete(midi);
+      this.noteRelease.delete(midi);
       this.updateSnapshot();
     }
     this.emit({ type: "off", midi, source, velocity: 0 });
@@ -348,6 +420,7 @@ class AudioEngine {
       for (const source of [...sources]) this.noteOff(midi, source);
     }
     for (const voice of Object.values(this.voices)) voice.releaseAll();
+    for (const sampler of Object.values(this.samplers)) sampler.releaseAll();
   }
 
   /** Plays notes as a short arpeggio/chord through the normal note path. */
@@ -404,7 +477,8 @@ class AudioEngine {
     for (const midi of this.pending) {
       const name = midiToNoteName(midi);
       const velocity = this.velocities.get(midi) ?? 0.8;
-      const voice = this.voices[this.noteVoice.get(midi) ?? "piano"] ?? this.voices.piano!;
+      const voice = this.play(this.noteVoice.get(midi) ?? "piano");
+      this.noteRelease.set(midi, voice.release);
       voice.attack(name, velocity);
       if (!this.held.has(midi)) window.setTimeout(() => voice.release(name), 350);
     }

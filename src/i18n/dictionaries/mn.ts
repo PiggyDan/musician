@@ -111,6 +111,7 @@ const mn: Dictionary = {
     product: "Бүтээгдэхүүн",
     madeFor: "Хаана ч байгаа сониуч хөгжимчдөд зориулав.",
     localNote: "Явц тань таны хөтөч дээр хадгалагдана.",
+    samples: "Зэмсгийн бичлэг: FluidR3_GM soundfont (CC BY 3.0)",
   },
   instruments: {
     piano: { name: "Төгөлдөр хуур", tagline: "Эв зохицлын үндэс" },

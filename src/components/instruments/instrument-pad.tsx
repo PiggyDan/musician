@@ -36,12 +36,13 @@ export function InstrumentPad({
 
   useEffect(() => {
     audioEngine.preload();
+    audioEngine.preloadVoice(instrument);
     const map = held.current;
     return () => {
       map.clear();
       audioEngine.releaseSource(`pad:${id}:`);
     };
-  }, [id]);
+  }, [id, instrument]);
 
   const down = (midi: Midi) => (e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();

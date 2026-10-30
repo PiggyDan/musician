@@ -113,6 +113,7 @@ const en = {
     product: "Product",
     madeFor: "Made for curious musicians everywhere.",
     localNote: "Progress is stored locally in your browser.",
+    samples: "Instrument recordings: FluidR3_GM soundfont (CC BY 3.0)",
   },
   instruments: {
     piano: { name: "Piano", tagline: "The foundation of harmony" },

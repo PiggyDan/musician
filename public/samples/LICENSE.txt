@@ -1,0 +1,16 @@
+Instrument samples used by MusicPath
+=====================================
+
+The MP3 files in this folder (piano, guitar, violin, cello, harmonica) are
+rendered from the FluidR3_GM SoundFont, as published by the
+midi-js-soundfonts project:
+  https://github.com/gleitz/midi-js-soundfonts
+
+License: Creative Commons Attribution 3.0
+  https://creativecommons.org/licenses/by/3.0/us/
+
+Attribution: FluidR3_GM SoundFont (Frank Wen and contributors), MP3 renders by
+Benjamin Gleitzman (midi-js-soundfonts). A subset of notes (every third
+semitone) is redistributed unmodified; MusicPath pitch-shifts between them.
+The ukulele voice uses the nylon-string guitar recordings (General MIDI has no
+ukulele program).

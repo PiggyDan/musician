@@ -61,6 +61,7 @@ export function useScorePlayback(
     async ({ bpm, metronome }: { bpm: number; metronome: boolean }) => {
       if (steps.length === 0) return;
       await audioEngine.unlock();
+      await audioEngine.waitForVoice(voice);
       halt();
       const from = indexRef.current ?? 0;
       const beatMs = 60_000 / bpm;

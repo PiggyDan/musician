@@ -40,7 +40,11 @@ export function SiteFooter() {
         <p>
           © MusicPath · {t.footer.madeFor}
         </p>
-        <p>Powered by Daniel Knight</p>
+        <p className="sm:text-right">
+          <a href="/samples/LICENSE.txt" className="hover:text-mist-300">{t.footer.samples}</a>
+          <br />
+          Powered by Daniel Knight
+        </p>
       </div>
     </footer>
   );
