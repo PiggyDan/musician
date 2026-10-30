@@ -313,10 +313,11 @@ export const SCORES: readonly ScoreEntry[] = [
     tempo: 80,
     clef: "treble",
     pickup: true,
-    melody: "G4:q | C5:h E5:8 C5:8 | E5:h D5:q | C5:h A4:q | G4:h G4:q | C5:h E5:8 C5:8 | E5:h D5:q | G5:h.",
+    // An octave up, where a C harmonica has every note without bending (holes 6–9).
+    melody: "G5:q | C6:h E6:8 C6:8 | E6:h D6:q | C6:h A5:q | G5:h G5:q | C6:h E6:8 C6:8 | E6:h D6:q | G6:h.",
     source: {
-      en: "Hymn tune “New Britain”, first published in 1829; words by John Newton (1779). First phrase, in C for a diatonic harmonica in C.",
-      mn: "1829 онд анх хэвлэгдсэн “New Britain” магтуу; үгийг Жон Ньютон (1779). Эхний хэсэг, до түлхүүртэй диатоник хармоникт.",
+      en: "Hymn tune “New Britain”, first published in 1829; words by John Newton (1779). First phrase in C, for a diatonic harmonica in C (holes 6–9, no bends).",
+      mn: "1829 онд анх хэвлэгдсэн “New Britain” магтуу; үгийг Жон Ньютон (1779). Эхний хэсэг, до түлхүүртэй диатоник хармоникт (6–9-р нүх, нугалалтгүй).",
     },
     compositionStatus: {
       en: "Public domain — published 1829; lyricist John Newton died 1807.",

@@ -86,7 +86,7 @@ function PerformancePlayer({ scoreId }: { scoreId: string }) {
   const score = getScore(scoreId)!;
   const steps = useMemo(() => scoreSteps(score), [score]);
   const endBeat = useMemo(() => Math.max(...scoreNotesTimed(score).map((n) => n.start + n.beats)), [score]);
-  const playback = useScorePlayback(steps, { beatsPerBar: score.time[0] * (4 / score.time[1]), pickupBeats: 0, endBeat });
+  const playback = useScorePlayback(steps, { beatsPerBar: score.time[0] * (4 / score.time[1]), pickupBeats: 0, endBeat, voice: score.instrument });
   const progress = playback.index === null ? 0 : (playback.index + 1) / steps.length;
 
   return (

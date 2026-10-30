@@ -17,9 +17,9 @@ export interface InstrumentDefinition {
 
 export const INSTRUMENTS: readonly InstrumentDefinition[] = [
   { id: "piano", available: true, href: "/learn/piano", accent: "#8b7bff" },
-  { id: "guitar", available: false, accent: "#4f8bff" },
-  { id: "ukulele", available: false, accent: "#2fd0e8" },
-  { id: "harmonica", available: false, accent: "#6ad1b8" },
-  { id: "violin", available: false, accent: "#b98bff" },
-  { id: "cello", available: false, accent: "#e48bd6" },
+  { id: "guitar", available: true, href: "/learn/guitar", accent: "#4f8bff" },
+  { id: "ukulele", available: true, href: "/learn/ukulele", accent: "#2fd0e8" },
+  { id: "harmonica", available: true, href: "/learn/harmonica", accent: "#6ad1b8" },
+  { id: "violin", available: true, href: "/learn/violin", accent: "#b98bff" },
+  { id: "cello", available: true, href: "/learn/cello", accent: "#e48bd6" },
 ];

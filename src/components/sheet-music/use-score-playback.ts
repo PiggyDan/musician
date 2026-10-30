@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { audioEngine } from "@/audio/engine";
+import { audioEngine, type VoiceId } from "@/audio/engine";
 import { startClickTrack, type ClickTrack } from "@/audio/metronome";
 import type { CursorStep } from "@/lib/sheet-music/notation";
 
@@ -24,7 +24,12 @@ export interface ScorePlayback {
  */
 export function useScorePlayback(
   steps: readonly CursorStep[],
-  { beatsPerBar, pickupBeats, endBeat }: { beatsPerBar: number; pickupBeats: number; endBeat: number },
+  {
+    beatsPerBar,
+    pickupBeats,
+    endBeat,
+    voice = "piano",
+  }: { beatsPerBar: number; pickupBeats: number; endBeat: number; voice?: VoiceId },
 ): ScorePlayback {
   const [playing, setPlaying] = useState(false);
   const [index, setIndex] = useState<number | null>(null);
@@ -81,7 +86,7 @@ export function useScorePlayback(
           window.setTimeout(() => {
             indexRef.current = i;
             setIndex(i);
-            for (const note of step.notes) audioEngine.noteOn(note.midi, SOURCE, note.staff === 2 ? 0.6 : 0.72);
+            for (const note of step.notes) audioEngine.noteOn(note.midi, SOURCE, note.staff === 2 ? 0.6 : 0.72, voice);
           }, at(step.start)),
         );
         for (const note of step.notes) {
@@ -98,7 +103,7 @@ export function useScorePlayback(
       );
       setPlaying(true);
     },
-    [steps, beatsPerBar, pickupBeats, endBeat, halt],
+    [steps, beatsPerBar, pickupBeats, endBeat, voice, halt],
   );
 
   // Silence everything when the viewer unmounts or its route is hidden.

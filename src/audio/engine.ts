@@ -6,6 +6,15 @@ type Voice = import("tone").PolySynth<import("tone").MonoSynth>;
 
 export type AudioStatus = "idle" | "loading" | "ready" | "error" | "unsupported";
 
+/** Which instrument sound plays a note. */
+export type VoiceId = "piano" | "guitar" | "ukulele" | "violin" | "cello" | "harmonica";
+
+interface VoiceImpl {
+  attack(note: string, velocity: number): void;
+  release(note: string): void;
+  releaseAll(): void;
+}
+
 /**
  * Who is holding a note: "keyboard", "pointer:3", "midi:<deviceId>", "demo".
  * A note sounds while at least one source holds it, so the same key pressed by
@@ -32,6 +41,9 @@ const EMPTY: readonly Midi[] = Object.freeze([]);
 class AudioEngine {
   private tone: ToneModule | null = null;
   private voice: Voice | null = null;
+  private voices: Partial<Record<VoiceId, VoiceImpl>> = {};
+  /** Which voice started each sounding note, so its release goes to the same voice. */
+  private noteVoice = new Map<Midi, VoiceId>();
   private master: import("tone").Volume | null = null;
   private clicker: import("tone").Synth | null = null;
   private loadPromise: Promise<ToneModule> | null = null;
@@ -188,6 +200,76 @@ class AudioEngine {
       },
     }).connect(reverb);
     this.voice.maxPolyphony = 32;
+    const piano = this.voice;
+    this.voices.piano = {
+      attack: (note, v) => piano.triggerAttack(note, undefined, v),
+      release: (note) => piano.triggerRelease(note),
+      releaseAll: () => piano.releaseAll(),
+    };
+    this.buildInstrumentVoices(tone, reverb);
+  }
+
+  /**
+   * Synthesized instrument voices (no samples, so no licensing questions):
+   * plucked strings use Karplus-Strong physical modelling; bowed strings and
+   * harmonica use shaped oscillators with a slow attack and vibrato.
+   */
+  private buildInstrumentVoices(tone: ToneModule, out: import("tone").ToneAudioNode): void {
+    const pluckPool = (options: { attackNoise: number; dampening: number; resonance: number; volume: number }): VoiceImpl => {
+      const filter = new tone.Filter(5200, "lowpass").connect(out);
+      const pool = Array.from({ length: 10 }, () => new tone.PluckSynth({ ...options }).connect(filter));
+      const byNote = new Map<string, (typeof pool)[number]>();
+      let next = 0;
+      return {
+        attack: (note) => {
+          const synth = pool[next];
+          next = (next + 1) % pool.length;
+          byNote.set(note, synth);
+          synth.triggerAttack(note);
+        },
+        // Lifting a finger damps the string.
+        release: (note) => {
+          byNote.get(note)?.triggerRelease();
+          byNote.delete(note);
+        },
+        releaseAll: () => {
+          pool.forEach((s) => s.triggerRelease());
+          byNote.clear();
+        },
+      };
+    };
+    const poly = (synth: Voice | import("tone").PolySynth): VoiceImpl => ({
+      attack: (note, v) => synth.triggerAttack(note, undefined, v),
+      release: (note) => synth.triggerRelease(note),
+      releaseAll: () => synth.releaseAll(),
+    });
+    const bowed = (brightness: number, attack: number, vibratoHz: number) => {
+      const vibrato = new tone.Vibrato(vibratoHz, 0.09).connect(out);
+      const synth = new tone.PolySynth(tone.MonoSynth, {
+        volume: -15,
+        oscillator: { type: "sawtooth" },
+        envelope: { attack, decay: 0.25, sustain: 0.85, release: 0.35 },
+        filter: { type: "lowpass", rolloff: -24, Q: 1.2 },
+        filterEnvelope: { attack: attack * 1.4, decay: 0.4, sustain: 0.7, release: 0.35, baseFrequency: brightness, octaves: 2.2 },
+      }).connect(vibrato);
+      synth.maxPolyphony = 8;
+      return poly(synth);
+    };
+
+    this.voices.guitar = pluckPool({ attackNoise: 1.4, dampening: 3600, resonance: 0.97, volume: -2 });
+    this.voices.ukulele = pluckPool({ attackNoise: 0.9, dampening: 5600, resonance: 0.93, volume: -2 });
+    this.voices.violin = bowed(950, 0.08, 5.6);
+    this.voices.cello = bowed(320, 0.12, 4.8);
+
+    const reedVibrato = new tone.Vibrato(6, 0.05).connect(out);
+    const reedFilter = new tone.Filter(2300, "lowpass").connect(reedVibrato);
+    const harmonica = new tone.PolySynth(tone.Synth, {
+      volume: -20,
+      oscillator: { type: "square" },
+      envelope: { attack: 0.035, decay: 0.12, sustain: 0.8, release: 0.12 },
+    }).connect(reedFilter);
+    harmonica.maxPolyphony = 6;
+    this.voices.harmonica = poly(harmonica);
   }
 
   private fail(error: unknown): false {
@@ -211,7 +293,7 @@ class AudioEngine {
 
   // ── Notes ───────────────────────────────────────────────────────────────────
 
-  noteOn(midi: Midi, source: NoteSource, velocity = 0.8): void {
+  noteOn(midi: Midi, source: NoteSource, velocity = 0.8, voice: VoiceId = "piano"): void {
     let sources = this.held.get(midi);
     if (sources?.has(source)) return; // key-repeat or duplicate event
     if (!sources) {
@@ -223,8 +305,9 @@ class AudioEngine {
     if (sources.size === 1) {
       const v = clamp01(velocity);
       this.velocities.set(midi, v);
+      this.noteVoice.set(midi, voice);
       if (this.voice && this.status === "ready") {
-        this.voice.triggerAttack(midiToNoteName(midi), undefined, v);
+        (this.voices[voice] ?? this.voices.piano)?.attack(midiToNoteName(midi), v);
       } else {
         this.pending.add(midi);
         void this.unlock();
@@ -242,8 +325,10 @@ class AudioEngine {
       this.held.delete(midi);
       // Pending notes stay queued so a tap before audio is ready still sounds.
       if (this.voice && !this.pending.has(midi)) {
-        this.voice.triggerRelease(midiToNoteName(midi));
+        const voice = this.noteVoice.get(midi) ?? "piano";
+        (this.voices[voice] ?? this.voices.piano)?.release(midiToNoteName(midi));
       }
+      this.noteVoice.delete(midi);
       this.updateSnapshot();
     }
     this.emit({ type: "off", midi, source, velocity: 0 });
@@ -262,7 +347,7 @@ class AudioEngine {
     for (const [midi, sources] of [...this.held]) {
       for (const source of [...sources]) this.noteOff(midi, source);
     }
-    this.voice?.releaseAll();
+    for (const voice of Object.values(this.voices)) voice.releaseAll();
   }
 
   /** Plays notes as a short arpeggio/chord through the normal note path. */
@@ -280,10 +365,10 @@ class AudioEngine {
    * Plays notes at given offsets (seconds from now) through the normal note
    * path, so keys light up. Returns a function that cancels what hasn't played.
    */
-  playTimed(notes: readonly { midi: Midi; at: number; duration: number }[]): () => void {
+  playTimed(notes: readonly { midi: Midi; at: number; duration: number }[], voice: VoiceId = "piano"): () => void {
     const timers: number[] = [];
     for (const note of notes) {
-      timers.push(window.setTimeout(() => this.noteOn(note.midi, "demo", 0.7), note.at * 1000));
+      timers.push(window.setTimeout(() => this.noteOn(note.midi, "demo", 0.7, voice), note.at * 1000));
       timers.push(
         window.setTimeout(() => this.noteOff(note.midi, "demo"), (note.at + note.duration) * 1000),
       );
@@ -319,8 +404,9 @@ class AudioEngine {
     for (const midi of this.pending) {
       const name = midiToNoteName(midi);
       const velocity = this.velocities.get(midi) ?? 0.8;
-      if (this.held.has(midi)) this.voice.triggerAttack(name, undefined, velocity);
-      else this.voice.triggerAttackRelease(name, 0.35, undefined, velocity);
+      const voice = this.voices[this.noteVoice.get(midi) ?? "piano"] ?? this.voices.piano!;
+      voice.attack(name, velocity);
+      if (!this.held.has(midi)) window.setTimeout(() => voice.release(name), 350);
     }
     this.pending.clear();
   }

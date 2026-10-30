@@ -1,5 +1,5 @@
 import type { InstrumentId } from "@/content/instruments";
-import type { StepCopyKey } from "@/i18n/types";
+import type { Dictionary, StepCopyKey } from "@/i18n/types";
 import type { NoteLetter } from "@/lib/music/notes";
 import type { Midi } from "@/lib/music/notes";
 
@@ -12,7 +12,9 @@ export type DiagramKind =
   | "bass-staff"
   | "left-hand"
   | "triads"
-  | "lh-chords";
+  | "lh-chords"
+  /** A playable picture of the lesson's instrument (fretboard / harmonica). */
+  | "instrument";
 
 export type Clef = "treble" | "bass";
 export type Hand = "right" | "left";
@@ -52,7 +54,7 @@ interface StepBase {
  * these; each kind has one generic component, so new lessons need no new UI.
  */
 export type LessonStep =
-  | (StepBase & { kind: "explain"; diagram?: DiagramKind })
+  | (StepBase & { kind: "explain"; diagram?: DiagramKind; instrument?: Exclude<InstrumentId, "piano"> })
   /** Play one exact pitch (octave matters). */
   | (StepBase & { kind: "play-note"; target: Midi; keyboard?: KeyboardRange })
   /** Play each letter in turn, in any octave. */
@@ -74,6 +76,8 @@ export type LessonStep =
       guide: boolean;
       fingers?: readonly (number | string)[];
       keyboard?: KeyboardRange;
+      /** Play on this instrument's pad instead of the piano. */
+      instrument?: Exclude<InstrumentId, "piano">;
     })
   /** Play in time with a metronome. Rhythm ignores pitch; song checks pitch and timing. */
   | (StepBase & {
@@ -100,7 +104,7 @@ export interface LessonDefinition {
   xp: number;
   estimatedMinutes: number;
   /** Key into `dictionary.lessons`. */
-  i18nKey: "l1" | "l2" | "l3" | "l4" | "l5" | "l6" | "l7" | "l8" | "l9" | "l10";
+  i18nKey: keyof Dictionary["lessons"];
   /** Course unit: 1 = Piano Foundations, 2 = Reading & Both Hands. */
   unit: 1 | 2;
   /** Coming-soon lessons are listed but not playable yet. */

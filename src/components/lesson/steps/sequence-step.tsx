@@ -12,6 +12,7 @@ import { midiToNoteName, pitchClassName, type Midi } from "@/lib/music/notes";
 import { Button } from "@/components/ui/button";
 import { FeedbackPanel } from "../feedback-panel";
 import { LessonKeyboard } from "../lesson-keyboard";
+import { InstrumentPad } from "@/components/instruments/instrument-pad";
 import { StepHeader, useFlashMarks, type StepProps } from "./shared";
 
 const DEMO_NOTE_SEC = 0.55;
@@ -66,6 +67,7 @@ export function SequenceStep({ step, copy, onComplete, headingRef }: StepProps<"
     cancelDemo.current?.();
     cancelDemo.current = audioEngine.playTimed(
       entries.flatMap((notes, i) => notes.map((midi) => ({ midi, at: 0.1 + i * DEMO_NOTE_SEC, duration: DEMO_NOTE_SEC * 0.9 }))),
+      step.instrument ?? "piano",
     );
   };
 
@@ -128,7 +130,7 @@ export function SequenceStep({ step, copy, onComplete, headingRef }: StepProps<"
           </li>
         ))}
       </ol>
-      {step.fingers && <p className="mt-2 text-xs text-mist-500">{s.fingerHint}</p>}
+      {step.fingers && <p className="mt-2 text-xs text-mist-500">{step.instrument ? t.pad.positionHint[step.instrument] : s.fingerHint}</p>}
 
       <FeedbackPanel
         className="mt-5"
@@ -139,7 +141,11 @@ export function SequenceStep({ step, copy, onComplete, headingRef }: StepProps<"
       />
 
       <div className="mt-8">
-        <LessonKeyboard range={step.keyboard} highlight={showNext ? expected : []} marks={marks} showNoteNames keyHints />
+        {step.instrument ? (
+          <InstrumentPad instrument={step.instrument} highlight={showNext ? expected : []} marks={marks} />
+        ) : (
+          <LessonKeyboard range={step.keyboard} highlight={showNext ? expected : []} marks={marks} showNoteNames keyHints />
+        )}
       </div>
     </div>
   );

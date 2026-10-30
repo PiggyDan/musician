@@ -60,16 +60,19 @@ export function InstrumentShowcase() {
           {upcoming.map((instrument, index) => (
             <li key={instrument.id} className="last:odd:col-span-2">
               <Reveal delay={0.06 * index} className="h-full">
-                <div className="relative flex h-full min-h-36 flex-col justify-between rounded-3xl bg-white/[0.025] p-5 ring-1 ring-white/[0.07]">
+                <Link
+                  href={instrument.href ?? "/learn"}
+                  className="relative flex h-full min-h-36 flex-col justify-between rounded-3xl bg-white/[0.025] p-5 ring-1 ring-white/[0.07] transition-colors hover:bg-white/[0.05]"
+                >
                   <InstrumentGlyph id={instrument.id} className="size-10 opacity-70" color={instrument.accent} />
                   <div className="mt-6">
                     <h3 className="font-medium">{t.instruments[instrument.id].name}</h3>
                     <p className="mt-0.5 text-xs text-mist-500">{t.instruments[instrument.id].tagline}</p>
                   </div>
-                  <span className="absolute top-4 right-4 rounded-full bg-white/[0.05] px-2 py-0.5 font-mono text-[10px] tracking-wider text-mist-400 uppercase">
-                    {t.common.comingSoon}
+                  <span className="absolute top-4 right-4 rounded-full bg-success/10 px-2 py-0.5 font-mono text-[10px] tracking-wider text-success uppercase">
+                    {t.common.available}
                   </span>
-                </div>
+                </Link>
               </Reveal>
             </li>
           ))}

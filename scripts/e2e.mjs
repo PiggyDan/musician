@@ -218,7 +218,7 @@ const check = (name, ok, detail = "") => {
 
 try {
   if (MODE === "screens") {
-    const routes = [["home", "/"], ["learn", "/learn"], ["academy", "/learn/piano"], ["lesson1", "/learn/piano/lesson/1"], ["lesson3", "/learn/piano/lesson/3"], ["practice", "/practice"], ["profile", "/profile"], ["404", "/nope"], ["library", "/sheet-music"], ["score-minuet", "/sheet-music/minuet-in-g-piano"], ["score-guitar", "/sheet-music/frere-jacques-guitar"], ["score-grand", "/sheet-music/ode-to-joy-both-hands"], ["songs", "/songs"], ["song-pd", "/songs/musicpath--ode-to-joy"], ["song-meta", "/songs/curated--way-maker"], ["lesson8", "/learn/piano/lesson/8"]];
+    const routes = [["home", "/"], ["learn", "/learn"], ["academy", "/learn/piano"], ["lesson1", "/learn/piano/lesson/1"], ["lesson3", "/learn/piano/lesson/3"], ["practice", "/practice"], ["profile", "/profile"], ["404", "/nope"], ["library", "/sheet-music"], ["score-minuet", "/sheet-music/minuet-in-g-piano"], ["score-guitar", "/sheet-music/frere-jacques-guitar"], ["score-grand", "/sheet-music/ode-to-joy-both-hands"], ["songs", "/songs"], ["song-pd", "/songs/musicpath--ode-to-joy"], ["song-meta", "/songs/curated--way-maker"], ["lesson8", "/learn/piano/lesson/8"], ["guitar", "/learn/guitar"], ["harmonica-l1", "/learn/harmonica/lesson/1"]];
     for (const [vw, vh, mobile, tag] of [[1440, 900, false, "desktop"], [390, 844, true, "mobile"]]) {
       await viewport(vw, vh, mobile);
       for (const [name, url] of routes) {
@@ -728,6 +728,39 @@ try {
     await screenshot("flow-score-print", true);
     await send("Emulation.setEmulatedMedia", { media: "" });
 
+
+    // ── Other instruments ──
+    const clickMidi = async (midi) => {
+      const c = await center(`[data-midi="${midi}"]`);
+      await send("Input.dispatchMouseEvent", { type: "mousePressed", x: c.x, y: c.y, button: "left", clickCount: 1 });
+      await sleep(60);
+      await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: c.x, y: c.y, button: "left", clickCount: 1 });
+      await sleep(120);
+    };
+    for (const [instrument, open, tune, intro] of [
+      ["guitar", [40, 45, 50, 55, 59, 64], [48, 50, 52, 48, 48, 50, 52, 48], "Play the strings"],
+      ["ukulele", [67, 60, 64, 69], [60, 60, 67, 67, 69, 69, 67], "Play the strings"],
+      ["violin", [55, 62, 69, 76], [72, 72, 72, 74, 76, 74], "Play the strings"],
+      ["cello", [36, 43, 50, 57], [52, 52, 53, 55, 55, 53, 52, 50], "Play the strings"],
+      ["harmonica", [72, 74, 76, 77, 79, 81, 83, 84], [64, 62, 60, 64, 62, 60], "Play the scale"],
+    ]) {
+      await goto(`/learn/${instrument}`);
+      const academyText = await text();
+      check(`${instrument}: academy page with playable instrument`, (await evaluate(`document.querySelectorAll('[data-midi]').length`)) > 10 && !academyText.includes("Coming soon"));
+      await goto(`/learn/${instrument}/lesson/1`);
+      await clickText(intro);
+      await sleep(800);
+      for (const m of open) await clickMidi(m);
+      await sleep(1600);
+      check(`${instrument}: lesson 1 complete (+10 XP)`, (await text()).includes("+10 XP earned"));
+      await goto(`/learn/${instrument}/lesson/2`);
+      await clickText("Play the tune");
+      await sleep(800);
+      for (const m of tune) await clickMidi(m);
+      await sleep(1600);
+      check(`${instrument}: lesson 2 complete (+15 XP)`, (await text()).includes("+15 XP earned"));
+    }
+    await screenshot("flow-instrument");
 
     // ── Songs ──
     await goto("/songs");

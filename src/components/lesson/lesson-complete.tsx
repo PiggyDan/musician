@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { ArrowRight, Check, GraduationCap, Music2, RotateCcw, Sparkles } from "lucide-react";
+import { getCourse } from "@/content/lessons/instruments";
 import { getNextLesson } from "@/content/lessons/piano";
 import type { LessonDefinition } from "@/content/lessons/types";
 import { format } from "@/i18n";
@@ -29,7 +30,8 @@ export function LessonComplete({
   const totalXp = useProgressStore((s) => s.xp);
   const completedLessons = useProgressStore((s) => s.completedLessons);
   const levelInfo = getLevelInfo(totalXp);
-  const next = getNextLesson(completedLessons);
+  const next = getNextLesson(completedLessons, getCourse(lesson.instrument));
+  const base = `/learn/${lesson.instrument}`;
   const course = Boolean(lesson.completesUnit);
   const unitCopy = c.units[lesson.unit];
 
@@ -94,12 +96,12 @@ export function LessonComplete({
 
       <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
         {next && next.id !== lesson.id ? (
-          <ButtonLink href={`/learn/piano/lesson/${next.slug}`} className="max-sm:w-full">
+          <ButtonLink href={`${base}/lesson/${next.slug}`} className="max-sm:w-full">
             {c.nextLesson}
             <ArrowRight className="size-4" aria-hidden />
           </ButtonLink>
         ) : (
-          <ButtonLink href="/learn/piano" className="max-sm:w-full">
+          <ButtonLink href={base} className="max-sm:w-full">
             {c.backToAcademy}
             <ArrowRight className="size-4" aria-hidden />
           </ButtonLink>

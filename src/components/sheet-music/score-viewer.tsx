@@ -30,6 +30,7 @@ import { FeedbackPanel } from "@/components/lesson/feedback-panel";
 import { useFlashMarks } from "@/components/lesson/steps/shared";
 import { PianoKeyboard } from "@/components/piano/piano-keyboard";
 import { useComputerKeyboard } from "@/components/piano/use-computer-keyboard";
+import { InstrumentPad } from "@/components/instruments/instrument-pad";
 import { ScoreSheet } from "./score-sheet";
 import { useScorePlayback } from "./use-score-playback";
 
@@ -64,6 +65,7 @@ export function ScoreViewer({ id }: { id: string }) {
     beatsPerBar: score.time[0] * (4 / score.time[1]),
     pickupBeats: score.pickup ? firstMeasureBeats(score.melody) : 0,
     endBeat,
+    voice: score.instrument,
   });
 
   const practiceDone = practiceIndex >= targets.length;
@@ -275,10 +277,14 @@ export function ScoreViewer({ id }: { id: string }) {
             />
           </div>
         )}
-        <ScoreKeyboard notes={allNotes} highlight={practice && target ? target.midis : []} marks={marks} />
+        {score.instrument === "piano" ? (
+          <ScoreKeyboard notes={allNotes} highlight={practice && target ? target.midis : []} marks={marks} />
+        ) : (
+          <InstrumentPad instrument={score.instrument} highlight={practice && target ? target.midis : []} marks={marks} />
+        )}
         <div className="mt-3 space-y-1 text-center text-xs text-mist-500">
           {score.clef === "treble-8vb" && <p>{v.concertPitch}</p>}
-          <p>{v.playbackNote}</p>
+          {score.instrument === "piano" && <p>{v.playbackNote}</p>}
           {grand && <p>{v.computerKeysTwoHands}</p>}
         </div>
         {relatedLesson && (

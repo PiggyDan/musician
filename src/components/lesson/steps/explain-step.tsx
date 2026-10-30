@@ -5,6 +5,7 @@ import { useI18n } from "@/i18n/use-i18n";
 import { pitchClassName } from "@/lib/music/notes";
 import { Button } from "@/components/ui/button";
 import { StaffView } from "@/components/music/staff-view";
+import { InstrumentPad } from "@/components/instruments/instrument-pad";
 import { KeyPatternDiagram, RhythmDiagram } from "../key-pattern-diagram";
 import type { StepProps } from "./shared";
 
@@ -25,6 +26,8 @@ export function ExplainStep({ step, copy, onComplete, headingRef }: StepProps<"e
       <KeyPatternDiagram label={d.fiveFinger} variant="five-finger" />
     ) : step.diagram === "rhythm" ? (
       <RhythmDiagram label={d.rhythm} quarter={d.quarter} half={d.half} beatLabel={d.beats} twoBeatsLabel={d.twoBeats} />
+    ) : step.diagram === "instrument" && step.instrument ? (
+      <InstrumentPad instrument={step.instrument} />
     ) : step.diagram === "left-hand" ? (
       <KeyPatternDiagram label={d.leftHand} variant="left-hand" />
     ) : step.diagram === "treble-staff" ? (

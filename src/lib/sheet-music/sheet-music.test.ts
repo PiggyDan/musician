@@ -19,6 +19,7 @@ import {
 import { measureErrors, toMusicXml } from "./musicxml";
 import { measureLength, parseMelody, toCursorSteps, toTimeline } from "./notation";
 import { detectChord } from "@/lib/music/chords";
+import { LAYOUTS } from "@/content/instrument-layouts";
 
 describe("notation parser", () => {
   it("parses pitches, rests, dots and measures", () => {
@@ -195,6 +196,22 @@ describe("catalog", () => {
       const file = path.join(process.cwd(), "public", pdfPath(score));
       expect(existsSync(file), `${file} missing — run npm run pdfs`).toBe(true);
       expect(statSync(file).size).toBeGreaterThan(10_000);
+    }
+  });
+
+  it("harmonica scores use only notes a C harmonica has without bending", () => {
+    const playable = new Set([...LAYOUTS.harmonica.kind === "harmonica" ? [...LAYOUTS.harmonica.blow, ...LAYOUTS.harmonica.draw] : []]);
+    for (const score of SCORES.filter((s) => s.instrument === "harmonica")) {
+      for (const midi of scoreNotes(score)) expect(playable.has(midi), `${score.id}: ${midi}`).toBe(true);
+    }
+  });
+
+  it("every non-piano score is playable on its on-screen instrument", () => {
+    for (const score of SCORES.filter((s) => s.instrument !== "piano" && s.instrument !== "harmonica")) {
+      const layout = LAYOUTS[score.instrument as "guitar"];
+      if (layout.kind !== "strings") continue;
+      const reachable = new Set(layout.strings.flatMap((st) => Array.from({ length: layout.positions }, (_, n) => st.open + n)));
+      for (const midi of scoreNotes(score)) expect(reachable.has(midi), `${score.id}: ${midi}`).toBe(true);
     }
   });
 

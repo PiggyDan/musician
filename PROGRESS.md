@@ -2,7 +2,15 @@
 
 _Last updated: 2026-10-30 · Milestone: **v0.5 — Unit 2 (reading, chords, both hands), practice loop, song discovery**_
 
-## v0.5 summary (latest)
+## v0.6 (latest) — all six instruments playable
+
+- Guitar, ukulele, violin, cello and harmonica are open: `/learn/<instrument>` with an on-screen playable instrument (standard tunings; C Richter harmonica) and 2 lessons each (open strings / holes, then a first tune: Frère Jacques, Twinkle, Au clair de la lune, Ode to Joy, Hot Cross Buns). Notes are defined by string·position or hole↑↓, so labels always match pitch (tested).
+- Each instrument has its own synthesized voice (no samples/licensing): Karplus-Strong plucked guitar/ukulele, bowed violin/cello with vibrato, reedy harmonica. Used by pads, lessons, score playback and song performances; non-piano scores practise on their own instrument.
+- Fix: Amazing Grace (harmonica) moved up an octave — it needed a bent note before; test now checks every harmonica note exists without bending.
+- Songs: 6 verified Spotify tracks play audio-only; other contemporary songs use verified official YouTube videos or search links.
+- Verification: 141 unit tests ✅, typecheck/lint/build ✅ (97 pages), e2e 123/124 (only failure: Tone.js "AudioContext is suspended" console warning before first tap — harmless, to silence next), layouts 36/36.
+
+## v0.5 summary
 
 - **Piano course = 10 lessons, 2 units (185 XP).** Unit 2 teaches real notation, not key-chasing:
   6 Treble staff (read-notes on a VexFlow-engraved staff, escalating hints: position → letter → key) ·
