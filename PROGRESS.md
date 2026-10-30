@@ -1,5 +1,36 @@
 # MusicPath — Progress
 
+_Last updated: 2026-10-30 · Milestone: **v0.5 — Unit 2 (reading, chords, both hands), practice loop, song discovery**_
+
+## v0.5 summary (latest)
+
+- **Piano course = 10 lessons, 2 units (185 XP).** Unit 2 teaches real notation, not key-chasing:
+  6 Treble staff (read-notes on a VexFlow-engraved staff, escalating hints: position → letter → key) ·
+  7 Bass clef + left-hand C position with correct fingering (LH 5→1) ·
+  8 Triads: root/third/fifth, C/F/G in both hands (feedback names the missing chord tone) ·
+  9 Grand staff, hands together (wait mode, then in time) ·
+  10 I–IV–V with left-hand inversions (C·CFA·BDG), then Ode to Joy with chords.
+  New step kinds: `read-notes`, `play-chords`; `play-sequence` supports chords/hands-together + finger numbers.
+- **Musical-accuracy tests:** every chord is the named major triad; RH/LH C-position fingering rules; left-hand harmony agrees with the melody; voice-leading of the LH shapes; staff positions; every lesson note visible on a phone keyboard. (A test caught and corrected an inaccurate claim in Lesson 10's text.)
+- **Two-hand notation:** notation supports chords (`C3+E3+G3:w`) and a bass staff; MusicXML grand staff (`<staves>2`, `<backup>`, `<chord/>`). New scores: First Light / Twinkle / Ode to Joy (hands together). Practice mode: right / left / both hands. Browser test proves our cursor model matches OSMD's cursor for all 16 scores.
+- **Practice loop:** daily goal (5/10/15/20 active-playing minutes), streak + best streak, 14-day chart, streak achievements; latency calibration (tap-along, median offset, applied to timed scoring).
+- **Sheet library:** shareable filter URLs, related-lesson links, grand-staff badge.
+- **Songs (`/songs`, `/songs/[id]`)** — provider-based catalog (`src/lib/catalog/`) keeping *metadata, playback, sheet music, practice, downloads* separate:
+  - `musicpath` provider: the 16 public-domain/original scores grouped into 10 songs, with MusicPath synthesized performance, scores, practice, downloads.
+  - `curated` provider: 15 contemporary songs (worship, gospel, pop, rock, K-pop, Mongolian) as **metadata only** — no lyrics/chords/sheet music, "Sheet music unavailable", no downloads, official search links.
+  - Playback only via: own performance, licensed audio (none yet), or **allow-listed official embeds**: 6 Spotify tracks (audio-only; verified title+artist on Spotify) and 11 YouTube videos (official artist/label channels verified via oEmbed; fan uploads rejected). Hiding YouTube video to play audio only is not allowed by YouTube's terms, so it isn't done.
+  - Integration plan: add providers implementing `CatalogProvider` — MusicBrainz (CC0 metadata), a licensed streaming provider (official SDK/embeds), a licensed sheet-music/chords partner; never treat metadata as permission.
+
+### Verification (v0.5)
+`npm test` 132/132 · typecheck ✅ · lint ✅ · build ✅ (80 static pages) · `npm run e2e` **109/109** (all 10 lessons played with real input incl. rhythm/song/both-hands timing 8/8, 6/6, 12/12, 17/17, 12/12, 27/27; 185 XP; cursor sync 16/16; calibration; songs rights checks) · `npm run e2e -- screens` **32/32** (16 routes × desktop/mobile, no overflow).
+Not human-verified: sound on real phones, physical MIDI, Spotify full-track playback (requires the listener's Spotify login).
+
+### Next milestone (v0.6)
+Licensed providers (MusicBrainz metadata, licensed streaming/sheet partners), Spotify IDs for the remaining songs, sustain pedal, Unit 3 (minor chords, eighth notes, songs with simple accompaniment), accounts + sync.
+
+---
+
+
 _Last updated: 2026-10-30 · Milestone: **v0.3 — Piano Foundations complete + Free Sheet Music Library**_
 
 ## Status at a glance

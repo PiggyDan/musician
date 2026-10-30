@@ -7,7 +7,7 @@ import {
   type Genre,
   type ScoreEntry,
 } from "@/content/sheet-music/catalog";
-import { parseMelody, toTimeline, type TimelineEvent } from "./notation";
+import { parseMelody, toCursorSteps, toTimeline, type CursorStep, type StaffNote } from "./notation";
 import { toMusicXml } from "./musicxml";
 
 export interface LibraryFilters {
@@ -25,6 +25,38 @@ export const EMPTY_FILTERS: LibraryFilters = {
   genre: "all",
   composer: "all",
 };
+
+const DIFFICULTY_VALUES: readonly LibraryFilters["difficulty"][] = ["all", "beginner", "elementary", "intermediate"];
+const GENRE_VALUES: readonly LibraryFilters["genre"][] = ["all", "classical", "folk", "hymn", "exercise"];
+const INSTRUMENT_VALUES: readonly LibraryFilters["instrument"][] = ["all", "piano", "guitar", "ukulele", "harmonica", "violin", "cello"];
+
+function pick<T extends string>(value: string | null, allowed: readonly T[]): T {
+  return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : allowed[0];
+}
+
+/** Reads filters from a query string; unknown values fall back to "all". */
+export function filtersFromSearch(search: string): LibraryFilters {
+  const params = new URLSearchParams(search);
+  const composerValues = ["all", ...Object.keys(COMPOSERS)] as LibraryFilters["composer"][];
+  return {
+    query: (params.get("q") ?? "").slice(0, 80),
+    instrument: pick(params.get("instrument"), INSTRUMENT_VALUES),
+    difficulty: pick(params.get("difficulty"), DIFFICULTY_VALUES),
+    genre: pick(params.get("genre"), GENRE_VALUES),
+    composer: pick(params.get("composer"), composerValues),
+  };
+}
+
+/** Writes non-default filters as a query string ("" when nothing is set). */
+export function filtersToSearch(filters: LibraryFilters): string {
+  const params = new URLSearchParams();
+  if (filters.query.trim()) params.set("q", filters.query.trim());
+  for (const key of ["instrument", "difficulty", "genre", "composer"] as const) {
+    if (filters[key] !== "all") params.set(key, filters[key]);
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "";
+}
 
 /** Lowercases and strips accents so "frere" finds "Frère". */
 function normalize(text: string): string {
@@ -46,15 +78,44 @@ export function filterScores(scores: readonly ScoreEntry[], filters: LibraryFilt
   });
 }
 
-export function scoreTimeline(score: ScoreEntry): TimelineEvent[] {
-  return toTimeline(parseMelody(score.melody).events);
+/** The moments a score cursor visits, across both staves of a grand staff. */
+export function scoreSteps(score: ScoreEntry): CursorStep[] {
+  const staves = [toTimeline(parseMelody(score.melody).events)];
+  if (score.bass) staves.push(toTimeline(parseMelody(score.bass).events));
+  return toCursorSteps(staves);
 }
 
-/** Pitched notes only, in order — the sequence practiced in practice mode. */
+/** Every note with its start, length and staff. */
+export function scoreNotesTimed(score: ScoreEntry): StaffNote[] {
+  return scoreSteps(score).flatMap((step) => step.notes);
+}
+
+/** Pitches of the upper staff (melody) in order; chords are listed low → high. */
 export function scoreNotes(score: ScoreEntry): number[] {
-  return scoreTimeline(score)
-    .map((e) => e.midi)
-    .filter((m): m is number => m !== null);
+  return parseMelody(score.melody).events.flatMap((e) => e.pitches.map((p) => p.midi));
+}
+
+export type PracticeHand = "both" | "right" | "left";
+
+export interface PracticeTarget {
+  /** Index into scoreSteps(score) — where the cursor sits. */
+  step: number;
+  /** Notes that must be held together to move on. */
+  midis: number[];
+}
+
+/**
+ * The sequence practice mode walks through. With one hand selected, steps
+ * where only the other hand plays are skipped — practising hands separately
+ * is how pianists learn a two-hand piece.
+ */
+export function practiceTargets(steps: readonly CursorStep[], hand: PracticeHand): PracticeTarget[] {
+  return steps.flatMap((step, index) => {
+    const midis = step.notes
+      .filter((n) => hand === "both" || (hand === "right" ? n.staff === 1 : n.staff === 2))
+      .map((n) => n.midi);
+    return midis.length > 0 ? [{ step: index, midis: [...new Set(midis)].sort((a, b) => a - b) }] : [];
+  });
 }
 
 const PART_NAMES: Record<InstrumentId, string> = {
@@ -85,6 +146,7 @@ export function scoreMusicXml(score: ScoreEntry, { forDisplay = false } = {}): s
     clef: score.clef,
     pickup: score.pickup,
     melody: score.melody,
+    bass: score.bass,
   });
 }
 

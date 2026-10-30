@@ -1,4 +1,13 @@
 import type { InstrumentId } from "@/content/instruments";
+import {
+  FIRST_LIGHT_LH,
+  FIRST_LIGHT_RH,
+  ODE_TO_JOY_LH,
+  ODE_TO_JOY_RH,
+  SUNRISE_STEPS_RH,
+  TWINKLE_LH,
+  TWINKLE_RH,
+} from "@/content/music/pieces";
 import type { ClefKind } from "@/lib/sheet-music/musicxml";
 
 /**
@@ -75,8 +84,12 @@ export interface ScoreEntry {
   tempo: number;
   clef: ClefKind;
   pickup?: boolean;
-  /** Melody at sounding pitch, in notation.ts format. */
+  /** Upper staff (melody) at sounding pitch, in notation.ts format. */
   melody: string;
+  /** Lower staff for piano grand staff (bass clef, left hand). */
+  bass?: string;
+  /** Slug of the piano lesson that teaches this piece or its skills. */
+  relatedLesson?: string;
   /** Where the music comes from and what was changed. */
   source: Localized;
   /** Public-domain status of the underlying composition. */
@@ -96,10 +109,8 @@ function shiftOctaves(melody: string, octaves: number): string {
 const PD_ENGRAVING = "Engraving by MusicPath, dedicated to the public domain under CC0 1.0.";
 const ORIGINAL = "© MusicPath. Licensed under CC BY 4.0 — credit “MusicPath”.";
 
-const ODE_TO_JOY =
-  "E4:q E4:q F4:q G4:q | G4:q F4:q E4:q D4:q | C4:q C4:q D4:q E4:q | E4:q. D4:8 D4:h | E4:q E4:q F4:q G4:q | G4:q F4:q E4:q D4:q | C4:q C4:q D4:q E4:q | D4:q. C4:8 C4:h";
-const TWINKLE =
-  "C4:q C4:q G4:q G4:q | A4:q A4:q G4:h | F4:q F4:q E4:q E4:q | D4:q D4:q C4:h | G4:q G4:q F4:q F4:q | E4:q E4:q D4:h | G4:q G4:q F4:q F4:q | E4:q E4:q D4:h | C4:q C4:q G4:q G4:q | A4:q A4:q G4:h | F4:q F4:q E4:q E4:q | D4:q D4:q C4:h";
+const ODE_TO_JOY = ODE_TO_JOY_RH;
+const TWINKLE = TWINKLE_RH;
 const MINUET_IN_G =
   "D5:q G4:8 A4:8 B4:8 C5:8 | D5:q G4:q G4:q | E5:q C5:8 D5:8 E5:8 F#5:8 | G5:q G4:q G4:q | C5:q D5:8 C5:8 B4:8 A4:8 | B4:q C5:8 B4:8 A4:8 G4:8 | F#4:q G4:8 A4:8 B4:8 G4:8 | A4:h.";
 
@@ -373,7 +384,8 @@ export const SCORES: readonly ScoreEntry[] = [
     time: [4, 4],
     tempo: 84,
     clef: "treble",
-    melody: "C4:q E4:q D4:q F4:q | E4:q G4:q F4:q E4:q | D4:h C4:h",
+    melody: SUNRISE_STEPS_RH,
+    relatedLesson: "3",
     source: {
       en: "Original MusicPath exercise for the C five-finger position (Piano Foundations, Lesson 3).",
       mn: "C таван хурууны байрлалд зориулсан MusicPath-ийн анхны дасгал (Төгөлдөр хуурын үндэс, 3-р хичээл).",
@@ -395,7 +407,8 @@ export const SCORES: readonly ScoreEntry[] = [
     time: [4, 4],
     tempo: 72,
     clef: "treble",
-    melody: "C4:q E4:q G4:h | F4:q E4:q D4:h | E4:q F4:q G4:q E4:q | D4:h C4:h",
+    melody: FIRST_LIGHT_RH,
+    relatedLesson: "5",
     source: {
       en: "Original MusicPath beginner piece (Piano Foundations, Lesson 5).",
       mn: "MusicPath-ийн эхлэгчдэд зориулсан анхны бүтээл (Төгөлдөр хуурын үндэс, 5-р хичээл).",
@@ -403,6 +416,78 @@ export const SCORES: readonly ScoreEntry[] = [
     compositionStatus: ORIGINAL_STATUS,
     license: "cc-by-4.0",
     attribution: ORIGINAL,
+    formats: BOTH,
+  },
+  {
+    id: "first-light-both-hands",
+    title: { en: "First Light (hands together)", mn: "Анхны гэгээ (хоёр гараар)" },
+    composer: "musicpath",
+    instrument: "piano",
+    difficulty: "beginner",
+    genre: "exercise",
+    year: "2026",
+    keyFifths: 0,
+    time: [4, 4],
+    tempo: 66,
+    clef: "treble",
+    melody: FIRST_LIGHT_RH,
+    bass: FIRST_LIGHT_LH,
+    relatedLesson: "9",
+    source: {
+      en: "Original MusicPath piece for both hands: melody in the right hand, bass notes C and G in the left (Piano, Lesson 9).",
+      mn: "Хоёр гарт зориулсан MusicPath-ийн анхны бүтээл: баруун гарт аялгуу, зүүн гарт C ба G басс нот (Төгөлдөр хуур, 9-р хичээл).",
+    },
+    compositionStatus: ORIGINAL_STATUS,
+    license: "cc-by-4.0",
+    attribution: ORIGINAL,
+    formats: BOTH,
+  },
+  {
+    id: "twinkle-both-hands",
+    title: { en: "Twinkle, Twinkle (hands together)", mn: "Гялалз, гялалз (хоёр гараар)" },
+    composer: "traditional",
+    instrument: "piano",
+    difficulty: "elementary",
+    genre: "folk",
+    year: "1761",
+    keyFifths: 0,
+    time: [4, 4],
+    tempo: 88,
+    clef: "treble",
+    melody: TWINKLE_RH,
+    bass: TWINKLE_LH,
+    relatedLesson: "9",
+    source: {
+      en: `${TWINKLE_SOURCE.en} MusicPath arrangement for both hands: left-hand bass notes follow the I, IV and V chords.`,
+      mn: `${TWINKLE_SOURCE.mn} MusicPath-ийн хоёр гарын найруулга: зүүн гарын басс нот I, IV, V аккордыг дагана.`,
+    },
+    compositionStatus: PD_TRADITIONAL,
+    license: "cc0",
+    attribution: PD_ENGRAVING,
+    formats: BOTH,
+  },
+  {
+    id: "ode-to-joy-both-hands",
+    title: { en: "Ode to Joy (hands together)", mn: "Баяр баясгалангийн магтаал (хоёр гараар)" },
+    composer: "beethoven",
+    instrument: "piano",
+    difficulty: "elementary",
+    genre: "classical",
+    year: "1824",
+    keyFifths: 0,
+    time: [4, 4],
+    tempo: 80,
+    clef: "treble",
+    melody: ODE_TO_JOY_RH,
+    bass: ODE_TO_JOY_LH,
+    relatedLesson: "10",
+    source: {
+      en: `${ODE_SOURCE.en} MusicPath arrangement for both hands with left-hand C and G chords (I and V).`,
+      mn: `${ODE_SOURCE.mn} Зүүн гарын C ба G аккордтой (I ба V) MusicPath-ийн хоёр гарын найруулга.`,
+    },
+    compositionStatus: pd("1827"),
+    license: "cc0",
+    attribution: PD_ENGRAVING,
     formats: BOTH,
   },
 ];

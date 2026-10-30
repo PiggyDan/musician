@@ -3,19 +3,43 @@ import type { StepCopyKey } from "@/i18n/types";
 import type { NoteLetter } from "@/lib/music/notes";
 import type { Midi } from "@/lib/music/notes";
 
-export type DiagramKind = "key-pattern" | "letters" | "five-finger" | "rhythm";
+export type DiagramKind =
+  | "key-pattern"
+  | "letters"
+  | "five-finger"
+  | "rhythm"
+  | "treble-staff"
+  | "bass-staff"
+  | "left-hand"
+  | "triads"
+  | "lh-chords";
+
+export type Clef = "treble" | "bass";
+export type Hand = "right" | "left";
 
 /** A note with a position in musical time. Beats are counted from 0. */
 export interface TimedNote {
   midi: Midi;
   beat: number;
   beats: number;
+  hand?: Hand;
+}
+
+/** A chord to play, with its letter name and root (for "add the third" feedback). */
+export interface ChordTarget {
+  /** e.g. "C", "F", "G" — major chords unless the name says otherwise. */
+  name: string;
+  /** MIDI of any octave of the root, e.g. 65 for F. */
+  root: Midi;
+  notes: readonly Midi[];
 }
 
 /** Visible keyboard range for a step: first white key and how many white keys to show (max). */
 export interface KeyboardRange {
   start: Midi;
   whiteKeys: number;
+  /** Show every key even on narrow screens (smaller keys) — needed for two hands. */
+  fitAll?: boolean;
 }
 
 interface StepBase {
@@ -35,8 +59,22 @@ export type LessonStep =
   | (StepBase & { kind: "find-notes"; letters: readonly NoteLetter[]; keyboard?: KeyboardRange })
   /** A key glows; the learner names it. */
   | (StepBase & { kind: "name-notes"; keys: readonly Midi[]; keyboard?: KeyboardRange })
-  /** Play notes in order; `guide` lights the next key. */
-  | (StepBase & { kind: "play-sequence"; notes: readonly Midi[]; guide: boolean; keyboard?: KeyboardRange })
+  /** A note appears on a staff; the learner plays that exact pitch. */
+  | (StepBase & { kind: "read-notes"; clef: Clef; notes: readonly Midi[]; keyboard?: KeyboardRange })
+  /** Hold each chord (all notes together). */
+  | (StepBase & { kind: "play-chords"; clef: Clef; chords: readonly ChordTarget[]; keyboard?: KeyboardRange })
+  /**
+   * Play notes in order; an entry with several notes must be held together
+   * (hands together / chords). `guide` lights the next key(s); `fingers`
+   * shows the correct finger number for each entry.
+   */
+  | (StepBase & {
+      kind: "play-sequence";
+      notes: readonly (Midi | readonly Midi[])[];
+      guide: boolean;
+      fingers?: readonly (number | string)[];
+      keyboard?: KeyboardRange;
+    })
   /** Play in time with a metronome. Rhythm ignores pitch; song checks pitch and timing. */
   | (StepBase & {
       kind: "play-timed";
@@ -62,12 +100,14 @@ export interface LessonDefinition {
   xp: number;
   estimatedMinutes: number;
   /** Key into `dictionary.lessons`. */
-  i18nKey: "l1" | "l2" | "l3" | "l4" | "l5";
+  i18nKey: "l1" | "l2" | "l3" | "l4" | "l5" | "l6" | "l7" | "l8" | "l9" | "l10";
+  /** Course unit: 1 = Piano Foundations, 2 = Reading & Both Hands. */
+  unit: 1 | 2;
   /** Coming-soon lessons are listed but not playable yet. */
   playable: boolean;
   steps: readonly LessonStep[];
-  /** Completing this lesson finishes its course. */
-  completesCourse?: boolean;
+  /** Completing this lesson finishes its unit. */
+  completesUnit?: boolean;
 }
 
 export type LessonState = "completed" | "available" | "locked" | "coming-soon";

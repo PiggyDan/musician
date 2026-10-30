@@ -17,6 +17,8 @@ import { LevelRing, ProgressBar } from "@/components/ui/progress";
 import { Reveal } from "@/components/ui/reveal";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { PageHeader } from "@/components/learn/page-header";
+import { DailyGoalCard } from "@/components/learn/daily-goal-card";
+import { LatencyCalibration } from "./latency-calibration";
 
 const LESSON_BY_ID = new Map(PIANO_LESSONS.map((lesson) => [lesson.id, lesson]));
 
@@ -114,6 +116,13 @@ export function LearnerProfile() {
                 <LanguageSwitcher />
               </div>
             </section>
+          </Reveal>
+
+          <Reveal delay={0.03}>
+            <DailyGoalCard />
+          </Reveal>
+          <Reveal delay={0.04}>
+            <LatencyCalibration />
           </Reveal>
 
           {/* Completed lessons */}

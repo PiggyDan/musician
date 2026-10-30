@@ -132,7 +132,7 @@ const waitForText = async (needle, timeout = 8000) => {
 };
 // Records (in page time) the moment "Play now!" first renders = beat 0.
 const armPlayNow = () =>
-  evaluate(`(() => { window.__playNowAt = null; const o = new MutationObserver(() => { if (window.__playNowAt === null && document.body.textContent.includes('Play now!')) { window.__playNowAt = performance.now(); o.disconnect(); } }); o.observe(document.body, { subtree: true, childList: true, characterData: true }); })()`);
+  evaluate(`(() => { window.__playNowAt = null; const visible = () => [...document.querySelectorAll('[role=status]')].some((el) => el.offsetParent !== null && el.textContent.includes('Play now!')); const o = new MutationObserver(() => { if (window.__playNowAt === null && visible()) { window.__playNowAt = performance.now(); o.disconnect(); } }); o.observe(document.body, { subtree: true, childList: true, characterData: true }); })()`);
 // Plays [code, beat] events in time relative to the page's beat 0.
 const playTimed = async (events, beatMs) => {
   const ok = await waitForText("Play now!", 10000);
@@ -159,6 +159,57 @@ const waitForScore = async (timeout = 15000) => {
   }
   return false;
 };
+// Computer-key code for a MIDI note when the "A" key plays `base`.
+const CODE_FOR_SEMITONE = ["KeyA", "KeyW", "KeyS", "KeyE", "KeyD", "KeyF", "KeyT", "KeyG", "KeyY", "KeyH", "KeyU", "KeyJ", "KeyK", "KeyO", "KeyL", "KeyP", "Semicolon"];
+const codeFor = (midi, base) => {
+  const code = CODE_FOR_SEMITONE[midi - base];
+  if (!code) throw new Error(`MIDI ${midi} not reachable from base ${base}`);
+  return code;
+};
+const playMidi = async (midi, base) => {
+  await tap(codeFor(midi, base));
+  await sleep(150);
+};
+// Holds several keys at once (a chord), then releases them.
+const chordKeys = async (midis, base, holdMs = 120) => {
+  for (const m of midis) await key(codeFor(m, base), "keyDown");
+  await sleep(holdMs);
+  for (const m of midis) await key(codeFor(m, base), "keyUp");
+};
+// Touches several on-screen keys at once (both hands / wide chords).
+const touchKeys = async (midis, holdMs = 80) => {
+  await evaluate(`document.querySelector('[data-midi="${midis[0]}"]').scrollIntoView({ block: "nearest" })`);
+  const points = [];
+  for (const [i, m] of midis.entries()) {
+    const c = await center(`[data-midi="${m}"]`);
+    points.push({ x: c.x, y: c.y, id: 100 + i });
+  }
+  // Clear any touch sequence Chrome still considers active, then start fresh.
+  await send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] }).catch(() => {});
+  await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: points });
+  // Headless Chrome occasionally drops an emulated touch late in a long session; retry once.
+  if ((await activeKeys()).length === 0) {
+    await send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] }).catch(() => {});
+    await send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: points.map((p) => ({ ...p, id: p.id + 50 })) });
+  }
+  await sleep(holdMs);
+  await send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+};
+// Plays [midis[], beat] events by touch, relative to the page's beat 0.
+const touchTimed = async (events, beatMs) => {
+  const ok = await waitForText("Play now!", 10000);
+  const t1 = Date.now();
+  const pageNow = await evaluate("performance.now()");
+  const t2 = Date.now();
+  const playAt = await evaluate("window.__playNowAt");
+  const zero = (t1 + t2) / 2 + (playAt - pageNow);
+  for (const [midis, beat] of events) {
+    const wait = zero + beat * beatMs - Date.now() - 6;
+    if (wait > 0) await sleep(wait);
+    await touchKeys(midis, 40);
+  }
+  return ok;
+};
 const results = [];
 const check = (name, ok, detail = "") => {
   results.push({ name, ok, detail });
@@ -167,7 +218,7 @@ const check = (name, ok, detail = "") => {
 
 try {
   if (MODE === "screens") {
-    const routes = [["home", "/"], ["learn", "/learn"], ["academy", "/learn/piano"], ["lesson1", "/learn/piano/lesson/1"], ["lesson3", "/learn/piano/lesson/3"], ["practice", "/practice"], ["profile", "/profile"], ["404", "/nope"], ["library", "/sheet-music"], ["score-minuet", "/sheet-music/minuet-in-g-piano"], ["score-guitar", "/sheet-music/frere-jacques-guitar"]];
+    const routes = [["home", "/"], ["learn", "/learn"], ["academy", "/learn/piano"], ["lesson1", "/learn/piano/lesson/1"], ["lesson3", "/learn/piano/lesson/3"], ["practice", "/practice"], ["profile", "/profile"], ["404", "/nope"], ["library", "/sheet-music"], ["score-minuet", "/sheet-music/minuet-in-g-piano"], ["score-guitar", "/sheet-music/frere-jacques-guitar"], ["score-grand", "/sheet-music/ode-to-joy-both-hands"], ["songs", "/songs"], ["song-pd", "/songs/musicpath--ode-to-joy"], ["song-meta", "/songs/curated--way-maker"], ["lesson8", "/learn/piano/lesson/8"]];
     for (const [vw, vh, mobile, tag] of [[1440, 900, false, "desktop"], [390, 844, true, "mobile"]]) {
       await viewport(vw, vh, mobile);
       for (const [name, url] of routes) {
@@ -403,10 +454,177 @@ try {
     check("total XP is 85 after all five lessons", st?.state?.xp === 85, `xp=${st?.state?.xp}`);
     check("course achievement unlocked", Boolean(st?.state?.achievements?.["foundations-complete"]));
 
+    // ── Unit 2 · Lesson 6: reading the treble staff (computer keys from C4) ──
+    await goto("/learn/piano/lesson/6");
+    check("L6 is unlocked after Unit 1", (await text()).includes("Reading the Treble Staff"));
+    await clickText("Start reading");
+    await sleep(900);
+    check("L6: a note is engraved on a staff", await evaluate(`document.querySelectorAll('[data-staff-ready="true"] svg').length > 0`));
+    await playMidi(64, 60); // wrong (target C4)
+    await sleep(200);
+    await playMidi(65, 60); // wrong again → position hint
+    await sleep(250);
+    let l6 = await text();
+    check("L6: misses reveal where the note sits", l6.includes("on a ledger line below the staff"));
+    await screenshot("flow-l6-read");
+    for (const m of [60, 64, 67, 62, 65, 67, 64, 60]) { await playMidi(m, 60); await sleep(850); }
+    await sleep(1300);
+    for (const m of [69, 71, 72, 67, 65, 69, 62, 71]) { await playMidi(m, 60); await sleep(850); }
+    await sleep(1500);
+    check("L6: completes with +15 XP", (await text()).includes("+15 XP earned"));
+
+    // ── Lesson 7: bass clef + left hand ──
+    await goto("/learn/piano/lesson/7");
+    await clickText("Start reading");
+    await sleep(900);
+    for (const m of [48, 55, 52, 50, 53, 48, 55, 52]) { await playMidi(m, 48); await sleep(850); }
+    await sleep(1300);
+    check("L7: bass reading leads to left-hand position", (await text()).includes("Left-hand C position"));
+    await clickText("Try it");
+    await sleep(900);
+    const l7 = await text();
+    check("L7: finger numbers shown (5 4 3 2 1)", /5\s*4\s*3\s*2\s*1/.test(l7.replace(/[CDEFG\n]/g, " ")) || l7.includes("1 = thumb"));
+    for (const m of [48, 50, 52, 53, 55, 53, 52, 50, 48]) await playMidi(m, 48);
+    await sleep(1400);
+    for (const m of [48, 52, 55, 52, 50, 48]) await playMidi(m, 48);
+    await sleep(1600);
+    check("L7: completes with +15 XP", (await text()).includes("+15 XP earned"));
+
+    // ── Lesson 8: chords ──
+    await goto("/learn/piano/lesson/8");
+    await clickText("Build a chord");
+    await sleep(900);
+    await key("KeyA", "keyDown"); // C only
+    await sleep(200);
+    check("L8: partial chord asks for the third", (await text()).includes("add the third: E"));
+    await key("KeyA", "keyUp");
+    await chordKeys([60, 64, 65], 60); // wrong note F
+    await sleep(200);
+    check("L8: wrong chord tone explained", (await text()).includes("F4 isn't in the C chord"));
+    await screenshot("flow-l8-chord");
+    for (const chord of [[60, 64, 67], [65, 69, 72], [67, 71, 74], [60, 64, 67]]) { await chordKeys(chord, 60, 200); await sleep(1200); }
+    await sleep(1000);
+    check("L8: right-hand chords lead to left-hand chords", (await text()).includes("Left-hand chords"));
+    for (const chord of [[48, 52, 55], [41, 45, 48], [43, 47, 50], [48, 52, 55]]) { await chordKeys(chord, 41, 200); await sleep(1200); }
+    await sleep(1600);
+    check("L8: completes with +20 XP", (await text()).includes("+20 XP earned"));
+
+    // ── Lesson 9: hands together (multi-touch) ──
+    await goto("/learn/piano/lesson/9");
+    await clickText("Start slowly");
+    await sleep(900);
+    const together = [[48, 60], [64], [67], [55, 65], [64], [62], [48, 64], [65], [67], [64], [55, 62], [48, 60]];
+    await touchKeys([64]); // wrong first
+    await sleep(250);
+    check("L9: wrong note names both-hand target", (await text()).includes("Play the glowing key: C3 + C4"));
+    for (const midis of together) { await touchKeys(midis); await sleep(180); }
+    await sleep(1400);
+    check("L9: wait-mode leads to timed both-hands song", (await text()).includes("First Light, both hands"));
+    await armPlayNow();
+    await clickExact("Start");
+    const firstLightBoth = [[[48, 60], 0], [[64], 1], [[67], 2], [[55, 65], 4], [[64], 5], [[62], 6], [[48, 64], 8], [[65], 9], [[67], 10], [[64], 11], [[55, 62], 12], [[48, 60], 14]];
+    await touchTimed(firstLightBoth, 60000 / 66);
+    await sleep(2600);
+    let l9 = await text();
+    check("L9: both hands in time passes", l9.includes("Great timing"), l9.match(/\d+ of \d+ notes on time/)?.[0]);
+    await screenshot("flow-l9-song");
+    await clickText("Continue");
+    await sleep(1800);
+    check("L9: completes with +25 XP", (await text()).includes("+25 XP earned"));
+
+    // ── Lesson 10: I–IV–V ──
+    await goto("/learn/piano/lesson/10");
+    await clickText("Learn the shapes");
+    await sleep(900);
+    for (const chord of [[48, 52, 55], [48, 53, 57], [47, 50, 55], [48, 52, 55]]) { await chordKeys(chord, 45, 200); await sleep(1200); }
+    await sleep(1000);
+    check("L10: shapes lead to progression in time", (await text()).includes("I – IV – V – I in time"));
+    await armPlayNow();
+    await clickExact("Start");
+    const progression = [[[48, 52, 55], 0], [[48, 53, 57], 4], [[47, 50, 55], 8], [[48, 52, 55], 12]];
+    {
+      const ok = await waitForText("Play now!", 10000);
+      const t1 = Date.now();
+      const pageNow = await evaluate("performance.now()");
+      const t2 = Date.now();
+      const zero = (t1 + t2) / 2 + ((await evaluate("window.__playNowAt")) - pageNow);
+      for (const [midis, beat] of progression) {
+        const wait = zero + beat * (60000 / 72) - Date.now() - 6;
+        if (wait > 0) await sleep(wait);
+        await chordKeys(midis, 45, 60);
+      }
+      check("L10: progression started", ok);
+    }
+    await sleep(4200);
+    let l10 = await text();
+    check("L10: chord progression in time passes", l10.includes("Great timing"), l10.match(/\d+ of \d+ notes on time/)?.[0]);
+    await clickText("Continue");
+    await sleep(1500);
+    check("L10: Ode to Joy with chords step", (await text()).includes("Ode to Joy, with chords"));
+    await armPlayNow();
+    await clickExact("Start");
+    const ode = [[[48, 52, 55, 64], 0], [[64], 1], [[65], 2], [[67], 3], [[47, 50, 55, 67], 4], [[65], 5], [[64], 6], [[62], 7], [[48, 52, 55, 60], 8], [[60], 9], [[62], 10], [[64], 11], [[47, 50, 55, 64], 12], [[62], 13.5], [[62], 14]];
+    {
+      // Left-hand chords on the computer keys (A = B2 here), right-hand notes with the mouse:
+      // both input paths are deterministic in headless Chrome, unlike emulated touch late in a run.
+      await waitForText("Play now!", 10000);
+      const t1 = Date.now();
+      const pageNow = await evaluate("performance.now()");
+      const t2 = Date.now();
+      const zero = (t1 + t2) / 2 + ((await evaluate("window.__playNowAt")) - pageNow);
+      const rhPos = {};
+      for (const m of [60, 62, 64, 65, 67]) rhPos[m] = await center(`[data-midi="${m}"]`);
+      for (const [midis, beat] of ode) {
+        const wait = zero + beat * (60000 / 66) - Date.now() - 6;
+        if (wait > 0) await sleep(wait);
+        const left = midis.filter((m) => m < 60);
+        const right = midis.filter((m) => m >= 60);
+        for (const m of left) await key(codeFor(m, 47), "keyDown");
+        for (const m of right) await send("Input.dispatchMouseEvent", { type: "mousePressed", x: rhPos[m].x, y: rhPos[m].y, button: "left", clickCount: 1 });
+        await sleep(40);
+        for (const m of right) await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: rhPos[m].x, y: rhPos[m].y, button: "left", clickCount: 1 });
+        for (const m of left) await key(codeFor(m, 47), "keyUp");
+      }
+    }
+    await sleep(3200);
+    l10 = await text();
+    check("L10: Ode to Joy hands together passes", l10.includes("Great timing"), l10.match(/\d+ of \d+ notes on time/)?.[0]);
+    await clickText("Continue");
+    await sleep(1800);
+    check("L10: Unit 2 completion celebration", (await text()).includes("Reading & Both Hands complete!"));
+    await screenshot("flow-l10-unit");
+    const st2 = JSON.parse(await evaluate("localStorage.getItem('musicpath:progress')"));
+    check("total XP is 185 after all ten lessons", st2?.state?.xp === 185, `xp=${st2?.state?.xp}`);
+    check("Unit 2 achievement unlocked", Boolean(st2?.state?.achievements?.["both-hands"]));
+    check("practice minutes were recorded today", Object.values(st2?.state?.practiceMinutes ?? {}).some((v) => v > 0));
+
+    // ── Dashboard goal + academy units ──
+    await goto("/learn");
+    const dash = await text();
+    check("dashboard shows the daily goal and streak", dash.includes("Daily goal") && /\d+-day streak|No streak yet|Goal reached/.test(dash));
+    await goto("/learn/piano");
+    const acad = await text();
+    check("academy groups lessons into two units", acad.includes("Unit 1 · Piano Foundations") && acad.includes("Unit 2 · Reading & Both Hands"));
+
+    // ── Latency calibration ──
+    await goto("/profile");
+    await clickText("Calibrate");
+    await waitForText("Tap here on every click", 5000);
+    await sleep(150 + 2 * 666 + 60);
+    for (let i = 0; i < 8; i += 1) {
+      await tap("KeyA", 30);
+      await sleep(666 - 30 - 8);
+    }
+    await sleep(1200);
+    const cal = await text();
+    check("calibration measures and saves a delay", cal.includes("Your device delay"), cal.match(/Your device delay: -?\d+ ms/)?.[0]);
+    const settings = JSON.parse(await evaluate("localStorage.getItem('musicpath:settings')"));
+    check("calibration persisted", settings?.state?.latencyCalibrated === true, `latency=${settings?.state?.latencyMs}`);
+
     // ── Sheet music library ──
     await goto("/sheet-music");
     let lib = await text();
-    check("library lists 13 scores", lib.includes("13 scores"), lib.match(/\d+ scores?/)?.[0]);
+    check("library lists 16 scores", lib.includes("16 scores"), lib.match(/\d+ scores?/)?.[0]);
     await clickExact("Harmonica");
     await sleep(300);
     lib = await text();
@@ -423,6 +641,47 @@ try {
     await send("Input.insertText", { text: "zzz" });
     await sleep(300);
     check("empty search shows an honest empty state", (await text()).includes("No scores match"));
+
+    // Every score: OSMD's cursor visits exactly as many positions as our step model.
+    await goto("/sheet-music");
+    const ids = await evaluate(`[...document.querySelectorAll('a[href^="/sheet-music/"]')].map(a => a.getAttribute('href').split('/').pop())`);
+    let syncFailures = [];
+    for (const id of ids) {
+      await goto(`/sheet-music/${id}`);
+      await waitForScore();
+      const counts = await evaluate(`({ osmd: Number(document.querySelector('[data-cursor-steps]')?.dataset.cursorSteps), ours: Number(document.querySelector('[data-expected-steps]')?.dataset.expectedSteps) })`);
+      if (counts.osmd !== counts.ours) syncFailures.push(`${id}: osmd=${counts.osmd} ours=${counts.ours}`);
+    }
+    check(`cursor model matches OSMD for all ${ids.length} scores`, ids.length >= 16 && syncFailures.length === 0, syncFailures.join(" | ") || `${ids.length} scores`);
+
+    await goto("/sheet-music?instrument=piano&q=hands");
+    await sleep(500);
+    const shared = await text();
+    check("filters load from a shared URL", shared.includes("3 scores") && shared.includes("Ode to Joy (hands together)"));
+    await clickExact("Harmonica");
+    await sleep(300);
+    check("filter changes update the URL", (await evaluate("location.search")).includes("instrument=harmonica"));
+
+    await goto("/sheet-music/first-light-both-hands");
+    await waitForScore();
+    await clickText("Practice");
+    await sleep(400);
+    await clickExact("Left hand");
+    await sleep(300);
+    check("left-hand practice starts with C3", (await text()).includes("Note 1 of 5"));
+    for (const m of [48, 55, 48, 55, 48]) { await touchKeys([m]); await sleep(150); }
+    await sleep(300);
+    check("left-hand practice completes", (await text()).includes("You played the whole piece!"));
+    await clickExact("Both hands");
+    await sleep(300);
+    await touchKeys([60]);
+    await sleep(200);
+    check("both-hands practice waits for C3 + C4 together", (await text()).includes("Note 1 of 12"));
+    await touchKeys([48, 60]);
+    await sleep(200);
+    check("both-hands practice advances on the pair", (await text()).includes("Note 2 of 12"));
+    check("viewer links to the related lesson", (await text()).includes("Learn the skills in Lesson 9"));
+    await screenshot("flow-score-grand");
 
     // ── Score viewer ──
     await goto("/sheet-music/ode-to-joy-piano");
@@ -469,6 +728,37 @@ try {
     await screenshot("flow-score-print", true);
     await send("Emulation.setEmulatedMedia", { media: "" });
 
+
+    // ── Songs ──
+    await goto("/songs");
+    let songsText = await text();
+    check("songs page lists the catalog", /\d+ songs/.test(songsText) && songsText.includes("Discovery only") && songsText.includes("Play & practise"));
+    await clickExact("K-pop");
+    await sleep(300);
+    songsText = await text();
+    check("genre filter shows K-pop songs", songsText.includes("Dynamite") && !songsText.includes("Ode to Joy"));
+    await goto("/songs/curated--wolf-totem");
+    songsText = await text();
+    check("metadata-only song: no recording, sheet music unavailable, no downloads",
+      songsText.includes("Sheet music unavailable") && songsText.includes("No downloads"));
+    check("metadata-only song links out to official search", (await evaluate(`[...document.querySelectorAll('a[target=_blank]')].map(a => a.href).join(' ')`)).includes("youtube.com/results"));
+    await goto("/songs/curated--shape-of-you");
+    check("audio-only: Spotify's player for a verified track", (await evaluate(`document.querySelector('main iframe')?.src ?? ''`)).startsWith("https://open.spotify.com/embed/track/7qiZfU4dY1lWllzX7mPBI3"));
+    await goto("/songs/curated--wolf-totem");
+    check("verified official video plays via YouTube's embed player", (await evaluate(`document.querySelector('main iframe')?.src ?? ''`)).startsWith("https://www.youtube-nocookie.com/embed/jM8dCGIm6yc"));
+    await goto("/songs/curated--way-maker");
+    songsText = await text();
+    check("unverified song: no player at all, only official search links", (await evaluate(`document.querySelectorAll('main iframe, main audio').length`)) === 0 && songsText.includes("No authorized recording available"));
+    await goto("/songs/musicpath--amazing-grace");
+    await clickExact("Play");
+    let heard = false;
+    for (let i = 0; i < 60 && !heard; i++) { heard = ((await evaluate(`[...document.querySelectorAll('.bg-spectrum.h-full')].find(e => e.offsetParent)?.style.width`)) ?? "0%") !== "0%"; await sleep(50); }
+    check("public-domain song plays the MusicPath performance", heard);
+    await clickExact("Pause");
+    check("public-domain song lists its arrangement and downloads", (await text()).includes("Open score") && (await text()).includes("MusicXML"));
+    await screenshot("flow-song-detail");
+    const missingSong = await fetch(BASE + "/songs/nope--nope");
+    check("unknown song returns 404", missingSong.status === 404, `status=${missingSong.status}`);
 
     await evaluate(`(() => { const k='musicpath:settings'; const s=JSON.parse(localStorage.getItem(k)); s.state.locale='mn'; localStorage.setItem(k, JSON.stringify(s)); })()`);
     await send("Page.navigate", { url: BASE + "/learn" });

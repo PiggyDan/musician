@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { audioEngine } from "@/audio/engine";
 import { startClickTrack, type ClickTrack } from "@/audio/metronome";
-import type { TimelineEvent } from "@/lib/sheet-music/notation";
+import type { CursorStep } from "@/lib/sheet-music/notation";
 
 /** Playback uses the "demo" source so it never counts as the learner's own notes. */
 const SOURCE = "demo";
 
 export interface ScorePlayback {
   playing: boolean;
-  /** Event currently sounding (for the cursor), or null when stopped. */
+  /** Cursor step currently sounding, or null when stopped. */
   index: number | null;
   play: (options: { bpm: number; metronome: boolean }) => Promise<void>;
   pause: () => void;
@@ -18,12 +18,13 @@ export interface ScorePlayback {
 }
 
 /**
- * Plays a score timeline through the shared audio engine, with an optional
- * metronome on the audio clock. Pausing keeps the position; play resumes.
+ * Plays a score (both staves) through the shared audio engine, moving the
+ * cursor step by step, with an optional metronome on the audio clock. Pausing
+ * keeps the position; play resumes from it.
  */
 export function useScorePlayback(
-  timeline: readonly TimelineEvent[],
-  { beatsPerBar, pickupBeats }: { beatsPerBar: number; pickupBeats: number },
+  steps: readonly CursorStep[],
+  { beatsPerBar, pickupBeats, endBeat }: { beatsPerBar: number; pickupBeats: number; endBeat: number },
 ): ScorePlayback {
   const [playing, setPlaying] = useState(false);
   const [index, setIndex] = useState<number | null>(null);
@@ -53,14 +54,12 @@ export function useScorePlayback(
 
   const play = useCallback(
     async ({ bpm, metronome }: { bpm: number; metronome: boolean }) => {
-      if (timeline.length === 0) return;
+      if (steps.length === 0) return;
       await audioEngine.unlock();
       halt();
       const from = indexRef.current ?? 0;
       const beatMs = 60_000 / bpm;
-      const startBeat = timeline[from].start;
-      const last = timeline[timeline.length - 1];
-      const endBeat = last.start + last.beats;
+      const startBeat = steps[from].start;
 
       const clicks = startClickTrack({
         bpm,
@@ -76,20 +75,17 @@ export function useScorePlayback(
       const zero = clicks.zeroPerfMs - audioEngine.outputLatencySec() * 1000;
       const at = (beat: number) => Math.max(0, zero + (beat - startBeat) * beatMs - performance.now());
 
-      for (let i = from; i < timeline.length; i += 1) {
-        const event = timeline[i];
+      for (let i = from; i < steps.length; i += 1) {
+        const step = steps[i];
         timers.current.push(
           window.setTimeout(() => {
             indexRef.current = i;
             setIndex(i);
-            if (event.midi !== null) audioEngine.noteOn(event.midi, SOURCE, 0.72);
-          }, at(event.start)),
+            for (const note of step.notes) audioEngine.noteOn(note.midi, SOURCE, note.staff === 2 ? 0.6 : 0.72);
+          }, at(step.start)),
         );
-        if (event.midi !== null) {
-          const midi = event.midi;
-          timers.current.push(
-            window.setTimeout(() => audioEngine.noteOff(midi, SOURCE), at(event.start + event.beats * 0.92)),
-          );
+        for (const note of step.notes) {
+          timers.current.push(window.setTimeout(() => audioEngine.noteOff(note.midi, SOURCE), at(note.start + note.beats * 0.92)));
         }
       }
       timers.current.push(
@@ -102,7 +98,7 @@ export function useScorePlayback(
       );
       setPlaying(true);
     },
-    [timeline, beatsPerBar, pickupBeats, halt],
+    [steps, beatsPerBar, pickupBeats, endBeat, halt],
   );
 
   // Silence everything when the viewer unmounts or its route is hidden.

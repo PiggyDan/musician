@@ -30,7 +30,8 @@ export function LessonComplete({
   const completedLessons = useProgressStore((s) => s.completedLessons);
   const levelInfo = getLevelInfo(totalXp);
   const next = getNextLesson(completedLessons);
-  const course = Boolean(lesson.completesCourse);
+  const course = Boolean(lesson.completesUnit);
+  const unitCopy = c.units[lesson.unit];
 
   return (
     <section className="relative mx-auto mt-10 max-w-xl overflow-hidden rounded-[32px] p-8 text-center ring-1 ring-white/10 sm:p-10">
@@ -58,13 +59,13 @@ export function LessonComplete({
 
       {course && (
         <p className="mt-6 inline-flex rounded-full bg-gold/10 px-3 py-1 font-mono text-[11px] tracking-wider text-gold uppercase ring-1 ring-gold/30">
-          {c.courseBadge}
+          {unitCopy.badge}
         </p>
       )}
       <h1 ref={headingRef} tabIndex={-1} className={cn("font-display text-3xl font-medium outline-none sm:text-4xl", course ? "mt-4" : "mt-7")}>
-        {course ? c.courseTitle : c.title}
+        {course ? unitCopy.title : c.title}
       </h1>
-      <p className="mt-3 text-mist-200">{course ? c.courseBody : t.lessons[lesson.i18nKey].done}</p>
+      <p className="mt-3 text-mist-200">{course ? unitCopy.body : t.lessons[lesson.i18nKey].done}</p>
 
       <div className="mt-7" role="status">
         {result.alreadyCompleted ? (

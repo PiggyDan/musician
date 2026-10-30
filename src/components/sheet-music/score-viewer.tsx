@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Download, FileText, Pause, Play, Printer, RotateCcw, Square, Target, Timer } from "lucide-react";
+import { ArrowLeft, BookOpen, Download, FileText, Pause, Play, Printer, RotateCcw, Square, Target, Timer } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { audioEngine } from "@/audio/engine";
@@ -10,8 +10,17 @@ import { COMPOSERS, LICENSES, getScore } from "@/content/sheet-music/catalog";
 import { useElementWidth } from "@/hooks/use-element-width";
 import { format } from "@/i18n";
 import { useI18n } from "@/i18n/use-i18n";
-import { advanceSequence } from "@/lib/lessons/evaluate";
-import { musicXmlPath, pdfPath, scoreMusicXml, scoreTimeline } from "@/lib/sheet-music/library";
+import { getPianoLesson } from "@/content/lessons/piano";
+import { evaluateHeld } from "@/lib/lessons/evaluate";
+import {
+  musicXmlPath,
+  pdfPath,
+  practiceTargets,
+  scoreMusicXml,
+  scoreNotesTimed,
+  scoreSteps,
+  type PracticeHand,
+} from "@/lib/sheet-music/library";
 import { cn } from "@/lib/cn";
 import { isBlackKey, midiToNoteName, pitchClassName, type Midi } from "@/lib/music/notes";
 import { buttonClasses, Button } from "@/components/ui/button";
@@ -35,43 +44,56 @@ export function ScoreViewer({ id }: { id: string }) {
   const instrument = INSTRUMENTS.find((i) => i.id === score.instrument)!;
 
   const xml = useMemo(() => scoreMusicXml(score, { forDisplay: true }), [score]);
-  const timeline = useMemo(() => scoreTimeline(score), [score]);
-  const pitched = useMemo(() => timeline.flatMap((e, i) => (e.midi === null ? [] : [{ midi: e.midi, event: i }])), [timeline]);
+  const steps = useMemo(() => scoreSteps(score), [score]);
+  const allNotes = useMemo(() => scoreNotesTimed(score).map((n) => n.midi), [score]);
+  const endBeat = useMemo(() => Math.max(...scoreNotesTimed(score).map((n) => n.start + n.beats)), [score]);
+  const grand = Boolean(score.bass);
+  const relatedLesson = score.relatedLesson ? getPianoLesson(score.relatedLesson) : undefined;
 
   const [tempoPct, setTempoPct] = useState(100);
   const [metronome, setMetronome] = useState(false);
   const [practice, setPractice] = useState(false);
   const [practiceIndex, setPracticeIndex] = useState(0);
+  const [hand, setHand] = useState<PracticeHand>("both");
+  const targets = useMemo(() => practiceTargets(steps, hand), [steps, hand]);
   const [feedback, setFeedback] = useState<{ id: number; ok: boolean; midi: Midi } | null>(null);
   const [marks, flash] = useFlashMarks();
 
   const bpm = Math.round((score.tempo * tempoPct) / 100);
-  const playback = useScorePlayback(timeline, {
+  const playback = useScorePlayback(steps, {
     beatsPerBar: score.time[0] * (4 / score.time[1]),
-    pickupBeats: score.pickup ? firstMeasureBeats(timeline, score.melody) : 0,
+    pickupBeats: score.pickup ? firstMeasureBeats(score.melody) : 0,
+    endBeat,
   });
 
-  const practiceDone = practiceIndex >= pitched.length;
-  const cursor = practice
-    ? practiceDone
-      ? null
-      : pitched[practiceIndex].event
-    : playback.index;
+  const practiceDone = practiceIndex >= targets.length;
+  const target = practiceDone ? null : targets[practiceIndex];
+  const cursor = practice ? (target ? target.step : null) : playback.index;
 
+  // Wait mode: the score moves on once every note of the current moment is held
+  // (a single note, a chord, or both hands together).
   useNoteEvents((event) => {
-    if (!practice || event.type !== "on" || event.source === "demo" || practiceDone) return;
-    const notes = pitched.map((p) => p.midi);
-    const result = advanceSequence(practiceIndex, event.midi, notes);
-    setFeedback((f) => ({ id: (f?.id ?? 0) + 1, ok: result.verdict !== "wrong", midi: event.midi }));
-    flash(event.midi, result.verdict === "wrong" ? "wrong" : "correct");
-    if (result.verdict !== "wrong") setPracticeIndex(result.index);
+    if (!practice || event.type !== "on" || event.source === "demo" || !target) return;
+    if (!target.midis.includes(event.midi)) {
+      setFeedback((f) => ({ id: (f?.id ?? 0) + 1, ok: false, midi: event.midi }));
+      flash(event.midi, "wrong");
+      return;
+    }
+    if (evaluateHeld(audioEngine.getActiveNotes(), target.midis).missing.length > 0) return;
+    setFeedback((f) => ({ id: (f?.id ?? 0) + 1, ok: true, midi: event.midi }));
+    flash(event.midi, "correct");
+    setPracticeIndex((i) => i + 1);
   });
+
+  const resetPractice = () => {
+    setPracticeIndex(0);
+    setFeedback(null);
+  };
 
   const togglePractice = () => {
     playback.stop();
     setPractice((p) => !p);
-    setPracticeIndex(0);
-    setFeedback(null);
+    resetPractice();
   };
 
   const togglePlay = () => {
@@ -87,12 +109,13 @@ export function ScoreViewer({ id }: { id: string }) {
   };
 
   const keyName = t.sheetMusic.keys[String(score.keyFifths) as keyof typeof t.sheetMusic.keys] ?? "";
-  const expected = practiceDone ? null : pitched[practiceIndex]?.midi;
+  const expectedLabel = target ? target.midis.map(midiToNoteName).join(" + ") : "";
   const message = practiceDone
     ? v.practiceDone
-    : feedback && !feedback.ok && expected !== undefined && expected !== null
-      ? format(v.practiceWrong, { note: midiToNoteName(feedback.midi), expected: midiToNoteName(expected) })
-      : format(v.practiceProgress, { n: practiceIndex + 1, total: pitched.length });
+    : feedback && !feedback.ok
+      ? format(v.practiceWrong, { note: midiToNoteName(feedback.midi), expected: expectedLabel })
+      : format(v.practiceProgress, { n: practiceIndex + 1, total: targets.length }) +
+        (target && target.midis.length > 1 ? ` · ${v.practiceTogether}` : "");
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-28 pb-12 sm:px-6 sm:pt-32 print:max-w-none print:p-0">
@@ -194,7 +217,9 @@ export function ScoreViewer({ id }: { id: string }) {
       </div>
 
       {/* The score, on paper */}
-      <div className="mt-4 overflow-hidden rounded-[28px] bg-[#fbfaf7] p-3 shadow-[0_30px_80px_-40px_rgba(106,85,255,0.6)] ring-1 ring-white/10 sm:p-6 print:rounded-none print:p-0 print:shadow-none print:ring-0">
+      <div
+        data-expected-steps={steps.length}
+        className="mt-4 overflow-hidden rounded-[28px] bg-[#fbfaf7] p-3 shadow-[0_30px_80px_-40px_rgba(106,85,255,0.6)] ring-1 ring-white/10 sm:p-6 print:rounded-none print:p-0 print:shadow-none print:ring-0">
         <ScoreSheet xml={xml} cursor={cursor} loadingLabel={v.loading} errorLabel={v.error} />
         <p className="hidden px-2 pt-4 text-[10px] leading-snug text-neutral-600 print:block">
           {score.title.en} — {composer.name.en}. {score.source.en} {score.attribution} {license.name} ({license.url}).
@@ -205,7 +230,30 @@ export function ScoreViewer({ id }: { id: string }) {
       <section className="mt-6 print:hidden" aria-label={v.practiceTitle}>
         {practice && (
           <div className="mb-4">
-            <p className="text-sm text-mist-400">{v.practiceBody}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-mist-400">{v.practiceBody}</p>
+              {grand && (
+                <div role="group" aria-label={v.hands} className="flex rounded-full bg-white/[0.05] p-1 ring-1 ring-white/10">
+                  {(["right", "left", "both"] as const).map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      aria-pressed={hand === h}
+                      onClick={() => {
+                        setHand(h);
+                        resetPractice();
+                      }}
+                      className={cn(
+                        "h-8 rounded-full px-3 text-xs transition-colors",
+                        hand === h ? "bg-white/[0.12] text-mist-50" : "text-mist-400 hover:text-mist-50",
+                      )}
+                    >
+                      {v.hand[h]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <FeedbackPanel
               className="mt-3"
               tone={practiceDone ? "correct" : !feedback ? "idle" : feedback.ok ? "correct" : "wrong"}
@@ -216,10 +264,7 @@ export function ScoreViewer({ id }: { id: string }) {
                 practiceDone ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      setPracticeIndex(0);
-                      setFeedback(null);
-                    }}
+                    onClick={resetPractice}
                     className="mt-1 inline-flex items-center gap-1.5 text-xs text-ion hover:underline"
                   >
                     <RotateCcw className="size-3" aria-hidden />
@@ -230,11 +275,21 @@ export function ScoreViewer({ id }: { id: string }) {
             />
           </div>
         )}
-        <ScoreKeyboard notes={pitched.map((p) => p.midi)} highlight={practice && expected ? [expected] : []} marks={marks} />
+        <ScoreKeyboard notes={allNotes} highlight={practice && target ? target.midis : []} marks={marks} />
         <div className="mt-3 space-y-1 text-center text-xs text-mist-500">
           {score.clef === "treble-8vb" && <p>{v.concertPitch}</p>}
           <p>{v.playbackNote}</p>
+          {grand && <p>{v.computerKeysTwoHands}</p>}
         </div>
+        {relatedLesson && (
+          <Link
+            href={`/learn/piano/lesson/${relatedLesson.slug}`}
+            className="mx-auto mt-4 flex w-fit items-center gap-2 rounded-full bg-pulse/10 px-4 py-2 text-sm text-mist-50 ring-1 ring-pulse/40 transition-colors hover:bg-pulse/15"
+          >
+            <BookOpen className="size-4 text-pulse" aria-hidden />
+            {format(v.relatedLesson, { n: relatedLesson.order, title: t.lessons[relatedLesson.i18nKey].title })}
+          </Link>
+        )}
         <AudioHint className="mt-3" iosOnly />
       </section>
 
@@ -260,9 +315,17 @@ export function ScoreViewer({ id }: { id: string }) {
 }
 
 /** Beats in the first (pickup) measure, so metronome accents land on bar lines. */
-function firstMeasureBeats(timeline: readonly { beats: number }[], melody: string): number {
-  const eventsInFirstBar = melody.split("|")[0].trim().split(/\s+/).length;
-  return timeline.slice(0, eventsInFirstBar).reduce((sum, e) => sum + e.beats, 0);
+function firstMeasureBeats(melody: string): number {
+  const sixteenths = { w: 16, h: 8, q: 4, "8": 2, "16": 1 } as const;
+  return melody
+    .split("|")[0]
+    .trim()
+    .split(/\s+/)
+    .reduce((sum, token) => {
+      const [, code] = token.split(":");
+      const base = sixteenths[code.replace(".", "") as keyof typeof sixteenths];
+      return sum + (code.endsWith(".") ? base * 1.5 : base) / 4;
+    }, 0);
 }
 
 /** Piano sized to the score's range, playable from the computer keyboard. */

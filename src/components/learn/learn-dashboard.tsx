@@ -4,6 +4,7 @@ import { ArrowRight, FlaskConical, Music2, PartyPopper } from "lucide-react";
 import Link from "next/link";
 import { INSTRUMENTS } from "@/content/instruments";
 import { getLessonState, getNextLesson, PIANO_LESSONS } from "@/content/lessons/piano";
+import { DailyGoalCard } from "./daily-goal-card";
 import { useProgressSummary } from "@/hooks/use-progress-summary";
 import { format } from "@/i18n";
 import { useI18n } from "@/i18n/use-i18n";
@@ -23,6 +24,10 @@ export function LearnDashboard() {
   const { xp, completedLessons, completedPiano, totalPiano, levelInfo } = useProgressSummary();
   const currentInstrument = useProgressStore((s) => s.currentInstrument);
   const next = getNextLesson(completedLessons);
+  // The journey shows the unit the learner is in (the last unit once all are done).
+  const unit = next?.unit ?? PIANO_LESSONS[PIANO_LESSONS.length - 1].unit;
+  const unitLessons = PIANO_LESSONS.filter((l) => l.unit === unit);
+  const unitDone = unitLessons.filter((l) => completedLessons[l.id]).length;
   const isNew = hydrated && completedPiano === 0;
 
   return (
@@ -124,16 +129,20 @@ export function LearnDashboard() {
         </Reveal>
       </div>
 
+      <Reveal delay={0.06} className="mt-4">
+        <DailyGoalCard />
+      </Reveal>
+
       {/* Journey */}
       <Reveal delay={0.1} className="mt-4">
         <section className="glass rounded-[28px] p-6 sm:p-8" aria-labelledby="journey-title">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 id="journey-title" className="font-display text-xl font-medium sm:text-2xl">
-                {t.learn.journeyTitle}
+                {t.academy.units[unit].title}
               </h2>
               <p className="mt-1 text-sm text-mist-400">
-                {format(t.learn.journeySubtitle, { done: hydrated ? completedPiano : 0, total: totalPiano })}
+                {format(t.learn.journeySubtitle, { done: hydrated ? unitDone : 0, total: unitLessons.length })}
               </p>
             </div>
             <Link href="/learn/piano" className="inline-flex items-center gap-1.5 text-sm font-medium text-ion hover:underline">
@@ -147,9 +156,9 @@ export function LearnDashboard() {
             <div
               aria-hidden
               className="bg-spectrum absolute top-7 left-[10%] h-px transition-[width] duration-1000"
-              style={{ width: `${(Math.min(hydrated ? completedPiano : 0, totalPiano - 1) / (totalPiano - 1)) * 80}%` }}
+              style={{ width: `${(Math.min(hydrated ? unitDone : 0, unitLessons.length - 1) / (unitLessons.length - 1)) * 80}%` }}
             />
-            {PIANO_LESSONS.map((lesson) => {
+            {unitLessons.map((lesson) => {
               const state = hydrated ? getLessonState(lesson, completedLessons) : "locked";
               const playable = state === "available" || state === "completed";
               const content = (

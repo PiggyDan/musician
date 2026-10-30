@@ -7,7 +7,12 @@ export type AchievementId =
   | "middle-c"
   | "first-melody"
   | "on-the-beat"
-  | "foundations-complete";
+  | "foundations-complete"
+  | "staff-reader"
+  | "chord-builder"
+  | "both-hands"
+  | "streak-3"
+  | "streak-7";
 
 export interface AchievementDefinition {
   id: AchievementId;
@@ -33,4 +38,9 @@ export const ACHIEVEMENTS: readonly AchievementDefinition[] = [
     i18nKey: "foundations-complete",
     isUnlocked: (s) => Boolean(s.completedLessons["piano-5"]),
   },
+  { id: "staff-reader", i18nKey: "staff-reader", isUnlocked: (s) => Boolean(s.completedLessons["piano-6"]) },
+  { id: "chord-builder", i18nKey: "chord-builder", isUnlocked: (s) => Boolean(s.completedLessons["piano-8"]) },
+  { id: "both-hands", i18nKey: "both-hands", isUnlocked: (s) => Boolean(s.completedLessons["piano-10"]) },
+  { id: "streak-3", i18nKey: "streak-3", isUnlocked: (s) => s.bestStreak >= 3 },
+  { id: "streak-7", i18nKey: "streak-7", isUnlocked: (s) => s.bestStreak >= 7 },
 ];

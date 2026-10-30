@@ -142,3 +142,23 @@ export function dominantProblem(score: TimingScore): TimingTendency {
 export function beatToMs(beat: number, bpm: number): number {
   return (beat * 60_000) / bpm;
 }
+
+/**
+ * Estimates how late a learner's taps land relative to clicks they hear —
+ * the combined audio-output and input delay of their device. Uses the median
+ * of each tap's offset to its nearest click (robust to a stray tap), ignoring
+ * taps more than half a beat from any click.
+ */
+export function estimateLatency(clickTimes: readonly number[], tapTimes: readonly number[], beatMs: number): number | null {
+  const offsets: number[] = [];
+  for (const tap of tapTimes) {
+    let best = Infinity;
+    for (const click of clickTimes) if (Math.abs(tap - click) < Math.abs(best)) best = tap - click;
+    if (Math.abs(best) <= beatMs / 2) offsets.push(best);
+  }
+  if (offsets.length < 4) return null;
+  offsets.sort((a, b) => a - b);
+  const mid = Math.floor(offsets.length / 2);
+  const median = offsets.length % 2 ? offsets[mid] : (offsets[mid - 1] + offsets[mid]) / 2;
+  return Math.round(Math.min(300, Math.max(-100, median)));
+}

@@ -117,11 +117,14 @@ describe("lesson unlocking", () => {
     expect(getNextLesson({})?.id).toBe("piano-1");
   });
 
-  it("unlocks lessons in order and finishes after lesson 5", () => {
+  it("unlocks lessons in order, continues into Unit 2, and finishes after lesson 10", () => {
     const done: Record<string, unknown> = { "piano-1": true };
     expect(getLessonState(PIANO_LESSONS[0], done)).toBe("completed");
     expect(getNextLesson(done)?.id).toBe("piano-2");
     for (const id of ["piano-2", "piano-3", "piano-4", "piano-5"]) done[id] = true;
+    expect(getNextLesson(done)?.id).toBe("piano-6");
+    expect(getLessonState(PIANO_LESSONS[6], done)).toBe("locked");
+    for (let i = 6; i <= 10; i += 1) done[`piano-${i}`] = true;
     expect(getNextLesson(done)).toBeUndefined();
   });
 

@@ -1,12 +1,18 @@
 "use client";
 
 import { Info, Search, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { INSTRUMENTS, type InstrumentId } from "@/content/instruments";
 import { COMPOSERS, SCORES, type ComposerId, type Difficulty, type Genre } from "@/content/sheet-music/catalog";
 import { format } from "@/i18n";
 import { useI18n } from "@/i18n/use-i18n";
-import { EMPTY_FILTERS, filterScores, type LibraryFilters } from "@/lib/sheet-music/library";
+import {
+  EMPTY_FILTERS,
+  filterScores,
+  filtersFromSearch,
+  filtersToSearch,
+  type LibraryFilters,
+} from "@/lib/sheet-music/library";
 import { cn } from "@/lib/cn";
 import { InstrumentGlyph } from "@/components/ui/instrument-glyph";
 import { Button } from "@/components/ui/button";
@@ -20,10 +26,29 @@ const USED_DIFFICULTIES = DIFFICULTIES.filter((d) => SCORES.some((s) => s.diffic
 const USED_GENRES = GENRES.filter((g) => SCORES.some((s) => s.genre === g));
 const USED_COMPOSERS = (Object.keys(COMPOSERS) as ComposerId[]).filter((c) => SCORES.some((s) => s.composer === c));
 
+const noopSubscribe = () => () => {};
+
+/**
+ * Filters live in the URL (?instrument=piano&q=ode) so a filtered view can be
+ * shared or bookmarked. The prerendered page has no URL query, so the view
+ * remounts once on the client with the filters from the address bar.
+ */
 export function SheetMusicLibrary() {
+  const search = useSyncExternalStore(noopSubscribe, () => window.location.search, () => null);
+  return <LibraryView key={search === null ? "server" : "client"} initialSearch={search ?? ""} syncUrl={search !== null} />;
+}
+
+function LibraryView({ initialSearch, syncUrl }: { initialSearch: string; syncUrl: boolean }) {
   const { t, locale } = useI18n();
   const sm = t.sheetMusic;
-  const [filters, setFilters] = useState<LibraryFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<LibraryFilters>(() => filtersFromSearch(initialSearch));
+
+  useEffect(() => {
+    // The prerendered view must not touch the URL before the client view has read it.
+    if (!syncUrl) return;
+    const url = `${window.location.pathname}${filtersToSearch(filters)}`;
+    if (url !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", url);
+  }, [filters, syncUrl]);
   const results = useMemo(() => filterScores(SCORES, filters), [filters]);
   const dirty = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);
   const set = <K extends keyof LibraryFilters>(key: K, value: LibraryFilters[K]) =>

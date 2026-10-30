@@ -15,7 +15,9 @@ import { LessonComplete } from "./lesson-complete";
 import { ExplainStep } from "./steps/explain-step";
 import { FindNotesStep } from "./steps/find-notes-step";
 import { NameNotesStep } from "./steps/name-notes-step";
+import { ChordsStep } from "./steps/chords-step";
 import { PlayNoteStep } from "./steps/play-note-step";
+import { ReadNotesStep } from "./steps/read-notes-step";
 import { SequenceStep } from "./steps/sequence-step";
 import { useAfter } from "./steps/shared";
 import { TimedStep } from "./steps/timed-step";
@@ -69,7 +71,7 @@ export function LessonRunner({ lesson }: { lesson: LessonDefinition }) {
     setAdvancing(false);
     if (isLast) {
       setFinished(true);
-      audioEngine.playPhrase(lesson.completesCourse ? [60, 64, 67, 72, 76, 79, 84] : [60, 64, 67, 72], {
+      audioEngine.playPhrase(lesson.completesUnit ? [60, 64, 67, 72, 76, 79, 84] : [60, 64, 67, 72], {
         stagger: 0.11,
         hold: 0.9,
       });
@@ -166,6 +168,10 @@ function StepView({
       return <FindNotesStep step={step} {...props} />;
     case "name-notes":
       return <NameNotesStep step={step} {...props} />;
+    case "read-notes":
+      return <ReadNotesStep step={step} {...props} />;
+    case "play-chords":
+      return <ChordsStep step={step} {...props} />;
     case "play-sequence":
       return <SequenceStep step={step} {...props} />;
     case "play-timed":

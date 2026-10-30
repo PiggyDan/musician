@@ -5,8 +5,10 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import type { AchievementId } from "@/lib/gamification/achievements";
 import {
   INITIAL_PROGRESS,
+  applyDailyGoal,
   applyLessonCompletion,
   applyNotesPlayed,
+  applyPracticeActivity,
   sanitizeProgress,
   type CompletionResult,
   type ProgressData,
@@ -17,6 +19,9 @@ interface ProgressActions {
   /** Awards XP only the first time a lesson is completed. */
   completeLesson: (lessonId: string, xp: number) => Omit<CompletionResult, "next">;
   recordNotesPlayed: (count: number) => AchievementId[];
+  /** Counts the current minute as practice (idempotent within a minute). */
+  recordPracticeActivity: () => AchievementId[];
+  setDailyGoal: (minutes: number) => void;
   resetProgress: () => void;
 }
 
@@ -41,6 +46,15 @@ export const useProgressStore = create<ProgressStore>()(
         return unlocked;
       },
 
+      recordPracticeActivity: () => {
+        const data = pickData(get());
+        const { next, unlocked } = applyPracticeActivity(data);
+        if (next !== data) set(next);
+        return unlocked;
+      },
+
+      setDailyGoal: (minutes) => set(applyDailyGoal(pickData(get()), minutes)),
+
       resetProgress: () => set({ ...INITIAL_PROGRESS }),
     }),
     {
@@ -63,5 +77,9 @@ function pickData(state: ProgressStore): ProgressData {
     achievements: state.achievements,
     history: state.history,
     notesPlayed: state.notesPlayed,
+    dailyGoalMinutes: state.dailyGoalMinutes,
+    practiceMinutes: state.practiceMinutes,
+    lastActiveMinute: state.lastActiveMinute,
+    bestStreak: state.bestStreak,
   };
 }

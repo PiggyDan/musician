@@ -19,6 +19,7 @@ const NAV = [
   { href: "/learn", key: "learn" },
   { href: "/practice", key: "studio" },
   { href: "/sheet-music", key: "sheetMusic" },
+  { href: "/songs", key: "songs" },
   { href: "/profile", key: "profile" },
 ] as const;
 
@@ -64,7 +65,7 @@ export function SiteHeader() {
           <Logo />
         </Link>
 
-        <nav aria-label={t.nav.primary} className="hidden md:block">
+        <nav aria-label={t.nav.primary} className="hidden lg:block">
           <ul className="flex items-center gap-1">
             {NAV.map((item) => {
               const active = isActive(pathname, item.href);
@@ -98,7 +99,7 @@ export function SiteHeader() {
           <LanguageSwitcher className="max-sm:hidden" />
           <button
             type="button"
-            className="inline-flex size-10 items-center justify-center rounded-full text-mist-200 hover:bg-white/[0.06] md:hidden"
+            className="inline-flex size-10 items-center justify-center rounded-full text-mist-200 hover:bg-white/[0.06] lg:hidden"
             aria-expanded={open}
             aria-controls="mobile-nav"
             aria-label={open ? t.nav.closeMenu : t.nav.openMenu}
@@ -118,7 +119,7 @@ export function SiteHeader() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2 }}
-            className="glass mt-2 rounded-3xl p-3 md:hidden"
+            className="glass mt-2 rounded-3xl p-3 lg:hidden"
           >
             <ul className="flex flex-col">
               {NAV.map((item) => {

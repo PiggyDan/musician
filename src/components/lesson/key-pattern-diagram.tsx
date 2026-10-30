@@ -1,12 +1,13 @@
 import { useId } from "react";
 
-export type KeyDiagramVariant = "pattern" | "letters" | "five-finger";
+export type KeyDiagramVariant = "pattern" | "letters" | "five-finger" | "left-hand";
 
 /**
  * One-octave teaching diagram (C–B).
  * - pattern: the two-black-key group outlined and C highlighted (Lesson 1)
  * - letters: every white key named, C as the landmark (Lesson 2)
  * - five-finger: right-hand fingers 1–5 on C–G (Lesson 3)
+ * - left-hand: left-hand fingers 5–1 on C–G — the pinky plays C (Lesson 7)
  */
 export function KeyPatternDiagram({
   label,
@@ -20,7 +21,8 @@ export function KeyPatternDiagram({
   const blacks = [0.62, 1.68, 3.58, 4.64, 5.7]; // left edge, in white-key units
   const w = 40;
   const h = 132;
-  const highlighted = (i: number) => (variant === "five-finger" ? i <= 4 : i === 0);
+  const fingered = variant === "five-finger" || variant === "left-hand";
+  const highlighted = (i: number) => (fingered ? i <= 4 : i === 0);
 
   return (
     <svg viewBox={`-6 -30 ${w * 7 + 12} ${h + 38}`} role="img" aria-label={label} className="w-full max-w-sm">
@@ -31,7 +33,7 @@ export function KeyPatternDiagram({
         </linearGradient>
       </defs>
 
-      {variant !== "five-finger" && (
+      {!fingered && (
         <>
           <path d={`M ${0.62 * w} -6 v -8 h ${(1.68 + 0.7 - 0.62) * w} v 8`} fill="none" stroke="#2fd8ee" strokeWidth="1.5" strokeLinecap="round" />
           <text x={((0.62 + 2.38) / 2) * w} y="-18" textAnchor="middle" fill="#2fd8ee" fontSize="10" fontFamily="var(--font-mono)">
@@ -67,11 +69,11 @@ export function KeyPatternDiagram({
           >
             {name}
           </text>
-          {variant === "five-finger" && i <= 4 && (
+          {fingered && i <= 4 && (
             <g>
               <circle cx={i * w + w / 2} cy={-16} r={10} fill="#1a1a2e" stroke="#8b7bff" strokeWidth="1.5" />
               <text x={i * w + w / 2} y={-12} textAnchor="middle" fontSize="11" fontWeight={700} fill="#cdcbe3" fontFamily="var(--font-mono)">
-                {i + 1}
+                {variant === "left-hand" ? 5 - i : i + 1}
               </text>
             </g>
           )}
@@ -85,8 +87,8 @@ export function KeyPatternDiagram({
           width={w * 0.7}
           height={h * 0.6}
           rx={4}
-          fill={variant !== "five-finger" && i < 2 ? "#1f1c3d" : "#15151f"}
-          stroke={variant !== "five-finger" && i < 2 ? "#2fd8ee" : "none"}
+          fill={!fingered && i < 2 ? "#1f1c3d" : "#15151f"}
+          stroke={!fingered && i < 2 ? "#2fd8ee" : "none"}
           strokeOpacity={0.6}
         />
       ))}

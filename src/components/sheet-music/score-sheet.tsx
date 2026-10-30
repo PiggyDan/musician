@@ -28,6 +28,9 @@ export function ScoreSheet({
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const position = useRef(0);
   const [status, setStatus] = useState<Status>("loading");
+  // How many positions OSMD's cursor visits — compared against our own step
+  // model in end-to-end tests to prove playback and practice stay in sync.
+  const [cursorSteps, setCursorSteps] = useState<number | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -54,7 +57,16 @@ export function ScoreSheet({
       if (disposed) return;
       osmd.render();
       osmdRef.current = osmd;
+      osmd.cursor.reset();
+      let count = 0;
+      while (!osmd.cursor.Iterator.EndReached && count < 10_000) {
+        count += 1;
+        osmd.cursor.next();
+      }
+      osmd.cursor.reset();
+      osmd.cursor.hide();
       position.current = 0;
+      setCursorSteps(count);
       setStatus("ready");
     })().catch((error: unknown) => {
       console.error("[MusicPath] Score failed to render", error);
@@ -93,7 +105,7 @@ export function ScoreSheet({
   }, [cursor, status]);
 
   return (
-    <div className={cn("relative", className)} data-score-ready={status === "ready"}>
+    <div className={cn("relative", className)} data-score-ready={status === "ready"} data-cursor-steps={cursorSteps ?? undefined}>
       {status === "loading" && (
         <div className="absolute inset-0 flex flex-col gap-4 p-8" aria-busy>
           <span className="sr-only">{loadingLabel}</span>

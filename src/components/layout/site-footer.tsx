@@ -11,6 +11,7 @@ export function SiteFooter() {
     { href: "/learn/piano", label: t.academy.title },
     { href: "/practice", label: t.nav.studio },
     { href: "/sheet-music", label: t.nav.sheetMusic },
+    { href: "/songs", label: t.nav.songs },
     { href: "/profile", label: t.nav.profile },
   ];
 

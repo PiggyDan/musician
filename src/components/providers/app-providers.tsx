@@ -4,6 +4,7 @@ import { MotionConfig } from "motion/react";
 import { useEffect, type ReactNode } from "react";
 import { audioEngine } from "@/audio/engine";
 import { LOCALE_TAGS } from "@/i18n/types";
+import { minuteKey } from "@/lib/gamification/practice";
 import { rehydrateStores, useStoresHydrated } from "@/store/hydration";
 import { PROGRESS_STORAGE_KEY, useProgressStore } from "@/store/progress";
 import { SETTINGS_STORAGE_KEY, useSettingsStore } from "@/store/settings";
@@ -49,8 +50,16 @@ export function AppProviders({ children }: { children: ReactNode }) {
       pending = 0;
       if (unlocked.length > 0) useToastStore.getState().pushAchievements(unlocked);
     };
+    let lastMinute = "";
     const unsubscribe = audioEngine.subscribeNotes((event) => {
       if (event.type !== "on" || event.source === "demo") return;
+      // Practice minutes: touch the store at most once per minute.
+      const minute = minuteKey(new Date());
+      if (minute !== lastMinute) {
+        lastMinute = minute;
+        const unlockedByPractice = useProgressStore.getState().recordPracticeActivity();
+        if (unlockedByPractice.length > 0) useToastStore.getState().pushAchievements(unlockedByPractice);
+      }
       // First note ever → flush immediately so "First Sound" appears right away.
       const isFirst = useProgressStore.getState().notesPlayed === 0 && pending === 0;
       pending += 1;

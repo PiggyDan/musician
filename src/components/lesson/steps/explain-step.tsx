@@ -2,9 +2,15 @@
 
 import { ArrowRight, Lightbulb } from "lucide-react";
 import { useI18n } from "@/i18n/use-i18n";
+import { pitchClassName } from "@/lib/music/notes";
 import { Button } from "@/components/ui/button";
+import { StaffView } from "@/components/music/staff-view";
 import { KeyPatternDiagram, RhythmDiagram } from "../key-pattern-diagram";
 import type { StepProps } from "./shared";
+
+function letter(midi: number): string {
+  return pitchClassName(midi);
+}
 
 export function ExplainStep({ step, copy, onComplete, headingRef }: StepProps<"explain">) {
   const { t } = useI18n();
@@ -19,6 +25,33 @@ export function ExplainStep({ step, copy, onComplete, headingRef }: StepProps<"e
       <KeyPatternDiagram label={d.fiveFinger} variant="five-finger" />
     ) : step.diagram === "rhythm" ? (
       <RhythmDiagram label={d.rhythm} quarter={d.quarter} half={d.half} beatLabel={d.beats} twoBeatsLabel={d.twoBeats} />
+    ) : step.diagram === "left-hand" ? (
+      <KeyPatternDiagram label={d.leftHand} variant="left-hand" />
+    ) : step.diagram === "treble-staff" ? (
+      <StaffView kind="treble" label={d.trebleStaff} groups={[60, 62, 64, 65, 67, 69, 71, 72].map((m) => ({ keys: [m], label: letter(m) }))} />
+    ) : step.diagram === "bass-staff" ? (
+      <StaffView kind="bass" label={d.bassStaff} groups={[48, 50, 52, 53, 55, 57, 59, 60].map((m) => ({ keys: [m], label: letter(m) }))} />
+    ) : step.diagram === "triads" ? (
+      <StaffView
+        kind="treble"
+        label={d.triads}
+        groups={[
+          { keys: [60, 64, 67], label: "C" },
+          { keys: [65, 69, 72], label: "F" },
+          { keys: [67, 71, 74], label: "G" },
+        ]}
+      />
+    ) : step.diagram === "lh-chords" ? (
+      <StaffView
+        kind="bass"
+        label={d.lhChords}
+        groups={[
+          { keys: [48, 52, 55], label: "C" },
+          { keys: [48, 53, 57], label: "F" },
+          { keys: [47, 50, 55], label: "G" },
+          { keys: [48, 52, 55], label: "C" },
+        ]}
+      />
     ) : null;
 
   return (

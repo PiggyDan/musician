@@ -1,5 +1,6 @@
 import type { InstrumentId } from "@/content/instruments";
 import { ACHIEVEMENTS, type AchievementId } from "./achievements";
+import { addPracticeMinute, currentStreak, DEFAULT_GOAL, GOAL_OPTIONS } from "./practice";
 
 export interface LessonCompletion {
   completedAt: string;
@@ -19,6 +20,14 @@ export interface ProgressData {
   history: HistoryEvent[];
   /** Lifetime notes played in the studio and lessons, for achievements. */
   notesPlayed: number;
+  /** Daily goal in practice minutes. */
+  dailyGoalMinutes: number;
+  /** Local date ("YYYY-MM-DD") → minutes actively played that day. */
+  practiceMinutes: Record<string, number>;
+  /** Last counted minute, so each minute counts once. */
+  lastActiveMinute: string | null;
+  /** Longest run of consecutive goal days. */
+  bestStreak: number;
 }
 
 export const HISTORY_LIMIT = 50;
@@ -30,6 +39,10 @@ export const INITIAL_PROGRESS: ProgressData = {
   achievements: {},
   history: [],
   notesPlayed: 0,
+  dailyGoalMinutes: DEFAULT_GOAL,
+  practiceMinutes: {},
+  lastActiveMinute: null,
+  bestStreak: 0,
 };
 
 export interface CompletionResult {
@@ -77,6 +90,23 @@ export function applyNotesPlayed(
 ): { next: ProgressData; unlocked: AchievementId[] } {
   if (count <= 0) return { next: state, unlocked: [] };
   return applyAchievements({ ...state, notesPlayed: state.notesPlayed + count }, now);
+}
+
+/** Counts the current minute as practice and updates the best streak. */
+export function applyPracticeActivity(
+  state: ProgressData,
+  now: Date = new Date(),
+): { next: ProgressData; unlocked: AchievementId[] } {
+  const log = addPracticeMinute(state, now);
+  if (log === state || log.lastActiveMinute === state.lastActiveMinute) return { next: state, unlocked: [] };
+  const streak = currentStreak(log.practiceMinutes, state.dailyGoalMinutes, now);
+  return applyAchievements({ ...state, ...log, bestStreak: Math.max(state.bestStreak, streak) }, now);
+}
+
+export function applyDailyGoal(state: ProgressData, minutes: number, now: Date = new Date()): ProgressData {
+  const goal = (GOAL_OPTIONS as readonly number[]).includes(minutes) ? minutes : DEFAULT_GOAL;
+  const streak = currentStreak(state.practiceMinutes, goal, now);
+  return { ...state, dailyGoalMinutes: goal, bestStreak: Math.max(state.bestStreak, streak) };
 }
 
 /** Unlocks any newly satisfied achievements and records them in history. */
@@ -129,5 +159,18 @@ export function sanitizeProgress(raw: unknown): ProgressData {
       typeof data.notesPlayed === "number" && Number.isFinite(data.notesPlayed)
         ? Math.max(0, data.notesPlayed)
         : 0,
+    dailyGoalMinutes: (GOAL_OPTIONS as readonly number[]).includes(data.dailyGoalMinutes as number)
+      ? (data.dailyGoalMinutes as number)
+      : DEFAULT_GOAL,
+    practiceMinutes:
+      data.practiceMinutes && typeof data.practiceMinutes === "object"
+        ? Object.fromEntries(
+            Object.entries(data.practiceMinutes).filter(
+              ([key, value]) => /^\d{4}-\d{2}-\d{2}$/.test(key) && typeof value === "number" && value >= 0,
+            ),
+          )
+        : {},
+    lastActiveMinute: typeof data.lastActiveMinute === "string" ? data.lastActiveMinute : null,
+    bestStreak: typeof data.bestStreak === "number" && Number.isFinite(data.bestStreak) ? Math.max(0, data.bestStreak) : 0,
   };
 }

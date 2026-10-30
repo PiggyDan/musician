@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, Headphones, Play, RotateCcw, Square, Turtle } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { audioEngine } from "@/audio/engine";
 import { useNoteEvents } from "@/audio/hooks";
@@ -20,6 +21,7 @@ import {
   type TimingScore,
 } from "@/lib/lessons/timing";
 import { cn } from "@/lib/cn";
+import { useSettingsStore } from "@/store/settings";
 import { Button } from "@/components/ui/button";
 import { useComputerKeyboard } from "@/components/piano/use-computer-keyboard";
 import { FeedbackPanel } from "../feedback-panel";
@@ -48,6 +50,8 @@ export function TimedStep({ step, copy, onComplete, headingRef }: StepProps<"pla
   const [last, setLast] = useState<{ id: number; status: HitStatus } | null>(null);
   const [endAt, setEndAt] = useState(0);
 
+  // Measured device delay (Profile → timing calibration): taps are shifted back by it.
+  const latencyMs = useSettingsStore((s) => s.latencyMs);
   const bpm = slow ? Math.round(step.bpm * SLOW_FACTOR) : step.bpm;
   const beatMs = 60_000 / bpm;
   const length = lengthInBeats(step.notes);
@@ -111,7 +115,7 @@ export function TimedStep({ step, copy, onComplete, headingRef }: StepProps<"pla
     const now = performance.now();
     const firstExpected = expected.current[0]?.timeMs ?? now;
     if (now < firstExpected - BEGINNER_TOLERANCES.windowMs) return; // ignore count-in taps
-    plays.current.push({ timeMs: now, midi: event.midi });
+    plays.current.push({ timeMs: now - latencyMs, midi: event.midi });
     const live = scoreTimedPerformance(expected.current, plays.current, { matchPitch: isSong });
     const matched = live.matches[plays.current.length - 1];
     setScore(live);
@@ -129,13 +133,14 @@ export function TimedStep({ step, copy, onComplete, headingRef }: StepProps<"pla
   const passed = phase === "result" && score !== null && hasPassed(score, step.passRatio);
   const problem = phase === "result" && score && !passed ? dominantProblem(score) : null;
 
-  // Next note to play (song mode): the first note whose start hasn't passed.
-  const nextIndex = useMemo(() => {
-    if (phase !== "running") return 0;
-    const i = step.notes.findIndex((n) => n.beat + n.beats > beat + 0.5);
-    return i === -1 ? step.notes.length - 1 : i;
-  }, [phase, beat, step.notes]);
-  const guideKeys = isSong && (phase === "running" || phase === "idle") ? [step.notes[nextIndex].midi] : [];
+  // Next notes to play (song mode): everything starting at the next onset —
+  // a chord or both hands light up together.
+  const guideKeys = useMemo(() => {
+    if (!isSong || (phase !== "running" && phase !== "idle")) return [];
+    const upcoming = phase === "running" ? step.notes.find((n) => n.beat + Math.min(n.beats, 1) > beat + 0.5) : step.notes[0];
+    if (!upcoming) return [];
+    return step.notes.filter((n) => n.beat === upcoming.beat).map((n) => n.midi);
+  }, [isSong, phase, beat, step.notes]);
 
   // ── Messages ──
   let tone: "idle" | "correct" | "wrong" = "idle";
@@ -187,7 +192,16 @@ export function TimedStep({ step, copy, onComplete, headingRef }: StepProps<"pla
           countInBeats={step.countInBeats}
           beatsPerBar={step.beatsPerBar}
           clock={running ? clock : null}
-          statuses={phase === "running" || phase === "result" ? (score?.notes.map((n) => n.status) ?? null) : null}
+          statuses={
+            phase === "result"
+              ? (score?.notes.map((n) => n.status) ?? null)
+              : phase === "running" && score
+                ? // A note is only "missed" once it is more than a window behind the playhead.
+                  score.notes.map((n, i) =>
+                    n.status === "missed" && step.notes[i].beat > beat - Math.ceil(BEGINNER_TOLERANCES.windowMs / beatMs) - 1 ? null : n.status,
+                  )
+                : null
+          }
           onBeat={setBeat}
           label={copy.prompt ?? copy.title}
         />
@@ -198,7 +212,18 @@ export function TimedStep({ step, copy, onComplete, headingRef }: StepProps<"pla
         tone={tone}
         message={message}
         messageKey={phase === "running" ? (beat < 0 ? `c${beat}` : (last?.id ?? "go")) : phase}
-        detail={problem ? <p className="mt-1 text-xs text-mist-400">{tt.tips[problem]}</p> : null}
+        detail={
+          problem ? (
+            <p className="mt-1 text-xs text-mist-400">
+              {tt.tips[problem]}{" "}
+              {(problem === "early" || problem === "late") && (
+                <Link href="/profile" className="text-ion hover:underline">
+                  {t.calibration.hint}
+                </Link>
+              )}
+            </p>
+          ) : null
+        }
       />
 
       {phase === "result" && score && (

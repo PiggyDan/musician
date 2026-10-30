@@ -36,7 +36,8 @@ export function TimelineGuide({
   countInBeats: number;
   beatsPerBar: number;
   clock: GuideClock | null;
-  statuses: readonly HitStatus[] | null;
+  /** Per-note result; null entries (or no array) are drawn as still to play. */
+  statuses: readonly (HitStatus | null)[] | null;
   onBeat?: (beat: number) => void;
   label: string;
 }) {
@@ -57,7 +58,9 @@ export function TimelineGuide({
     return list;
   }, [notes, mode]);
 
-  const height = mode === "song" ? Math.max(150, lanes.length * 34 + 24) : 104;
+  // Lanes shrink for wide (two-hand) ranges so the guide stays a sensible height.
+  // Capped so the keyboard stays on screen below it on a laptop.
+  const height = mode === "song" ? Math.min(240, Math.max(150, lanes.length * 26 + 24)) : 104;
   const pxPerBeat = 84;
 
   useEffect(() => {
@@ -141,7 +144,9 @@ export function TimelineGuide({
                 !status || status === "missed"
                   ? status === "missed"
                     ? "bg-rose-500/25 text-rose-200 ring-1 ring-rose-400/40"
-                    : "bg-spectrum text-white shadow-[0_0_18px_-4px_rgba(79,139,255,0.9)]"
+                    : note.hand === "left"
+                      ? "bg-gradient-to-r from-ion to-teal-300 text-ink-950 shadow-[0_0_18px_-4px_rgba(47,216,238,0.9)]"
+                      : "bg-spectrum text-white shadow-[0_0_18px_-4px_rgba(79,139,255,0.9)]"
                   : status === "perfect" || status === "good"
                     ? "bg-success text-ink-950 shadow-[0_0_20px_-4px_rgba(79,224,168,0.9)]"
                     : status === "wrong-pitch"

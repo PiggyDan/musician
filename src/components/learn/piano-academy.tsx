@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import { ArrowRight, Clock3, RotateCcw } from "lucide-react";
-import { getLessonState, PIANO_LESSONS } from "@/content/lessons/piano";
+import { getLessonState, PIANO_LESSONS, UNITS } from "@/content/lessons/piano";
 import type { LessonState } from "@/content/lessons/types";
 import { useProgressSummary } from "@/hooks/use-progress-summary";
 import { format } from "@/i18n";
@@ -47,8 +47,22 @@ export function PianoAcademy() {
         </div>
       </div>
 
-      <ol aria-label={t.academy.pathLabel} className="relative mt-12">
-        {PIANO_LESSONS.map((lesson, index) => {
+      {UNITS.map((unit) => {
+        const unitLessons = PIANO_LESSONS.filter((l) => l.unit === unit);
+        const unitDone = unitLessons.filter((l) => completedLessons[l.id]).length;
+        return (
+          <section key={unit} className="mt-12" aria-labelledby={`unit-${unit}`}>
+            <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id={`unit-${unit}`} className="font-display text-xl font-medium sm:text-2xl">
+                {t.academy.units[unit].title}
+              </h2>
+              <span className="font-mono text-xs text-mist-500">
+                {hydrated ? unitDone : 0}/{unitLessons.length}
+              </span>
+            </div>
+            <p className="-mt-4 mb-6 max-w-2xl text-sm text-mist-400">{t.academy.units[unit].subtitle}</p>
+      <ol aria-label={t.academy.units[unit].title} className="relative">
+        {unitLessons.map((lesson, index) => {
           const state: LessonState = hydrated ? getLessonState(lesson, completedLessons) : "locked";
           const copy = t.lessons[lesson.i18nKey];
           const completion = completedLessons[lesson.id];
@@ -62,7 +76,7 @@ export function PianoAcademy() {
               transition={{ duration: 0.6, delay: 0.08 * index, ease: [0.16, 1, 0.3, 1] }}
               className="relative flex gap-4 pb-6 last:pb-0 sm:gap-6"
             >
-              {index < PIANO_LESSONS.length - 1 && (
+              {index < unitLessons.length - 1 && (
                 <div
                   aria-hidden
                   className={cn(
@@ -135,6 +149,9 @@ export function PianoAcademy() {
           );
         })}
       </ol>
+          </section>
+        );
+      })}
     </div>
   );
 }

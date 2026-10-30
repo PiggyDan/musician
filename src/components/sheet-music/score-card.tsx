@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import { INSTRUMENTS } from "@/content/instruments";
 import { COMPOSERS, type ScoreEntry } from "@/content/sheet-music/catalog";
 import { useI18n } from "@/i18n/use-i18n";
-import { scoreTimeline } from "@/lib/sheet-music/library";
+import { scoreNotesTimed } from "@/lib/sheet-music/library";
 import { cn } from "@/lib/cn";
 import { InstrumentGlyph } from "@/components/ui/instrument-glyph";
 
@@ -16,14 +16,21 @@ import { InstrumentGlyph } from "@/components/ui/instrument-glyph";
  */
 function MelodyContour({ score, accent }: { score: ScoreEntry; accent: string }) {
   const { points, path } = useMemo(() => {
-    const timeline = scoreTimeline(score).filter((e) => e.midi !== null);
-    const end = Math.max(...timeline.map((e) => e.start + e.beats));
-    const lo = Math.min(...timeline.map((e) => e.midi!));
-    const hi = Math.max(...timeline.map((e) => e.midi!));
+    // The melody (upper staff) — its top note when the right hand plays a chord.
+    const byStart = new Map<number, { midi: number; start: number; beats: number }>();
+    for (const n of scoreNotesTimed(score)) {
+      if (n.staff !== 1) continue;
+      const prev = byStart.get(n.start);
+      if (!prev || n.midi > prev.midi) byStart.set(n.start, n);
+    }
+    const melody = [...byStart.values()].sort((a, b) => a.start - b.start);
+    const end = Math.max(...melody.map((e) => e.start + e.beats));
+    const lo = Math.min(...melody.map((e) => e.midi));
+    const hi = Math.max(...melody.map((e) => e.midi));
     const span = Math.max(7, hi - lo);
-    const pts = timeline.map((e) => ({
+    const pts = melody.map((e) => ({
       x: 8 + ((e.start + e.beats / 2) / end) * 284,
-      y: 66 - ((e.midi! - lo) / span) * 48,
+      y: 66 - ((e.midi - lo) / span) * 48,
       long: e.beats >= 2,
     }));
     return { points: pts, path: pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ") };
@@ -69,6 +76,9 @@ export function ScoreCard({ score }: { score: ScoreEntry }) {
           <InstrumentGlyph id={score.instrument} className="size-4" color={instrument.accent} />
           {t.instruments[score.instrument].name}
         </span>
+        {score.bass && (
+          <span className="rounded-full bg-ion/10 px-2.5 py-1 text-xs text-ion">{t.sheetMusic.viewer.grandStaff}</span>
+        )}
         <span
           className={cn(
             "rounded-full px-2.5 py-1 text-xs",
