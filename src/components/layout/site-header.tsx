@@ -18,6 +18,7 @@ const NAV = [
   { href: "/", key: "home" },
   { href: "/learn", key: "learn" },
   { href: "/practice", key: "studio" },
+  { href: "/sheet-music", key: "sheetMusic" },
   { href: "/profile", key: "profile" },
 ] as const;
 
@@ -46,7 +47,7 @@ export function SiteHeader() {
   }, [open]);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 px-3 sm:px-4">
+    <header className="fixed inset-x-0 top-0 z-50 px-3 sm:px-4 print:hidden">
       <a
         href="#main"
         className="sr-only rounded-full bg-ink-800 px-4 py-2 focus:not-sr-only focus:absolute focus:top-3 focus:left-3"

@@ -1,7 +1,7 @@
 import { audioEngine } from "./engine";
 
 export interface ClickTrack {
-  /** performance.now() time at which beat 0 is *heard* (output latency included). */
+  /** performance.now() time at which `startBeat` is *heard* (output latency included). */
   zeroPerfMs: number;
   beatMs: number;
   stop: () => void;
@@ -12,20 +12,28 @@ const LOOKAHEAD_SEC = 0.15;
 const TICK_MS = 25;
 
 /**
- * Plays `beats` metronome ticks on the audio clock (sample-accurate, unlike
- * timers) using a small look-ahead scheduler, so stop() takes effect within
- * ~150 ms. Without running audio it still returns a valid timeline, so
- * visuals and scoring keep working silently.
+ * Plays metronome ticks on the audio clock (sample-accurate, unlike timers)
+ * with a small look-ahead scheduler, so stop() takes effect within ~150 ms.
+ *
+ * Ticks land on whole beats from `startBeat` (which may be fractional, e.g.
+ * when resuming mid-measure) for `beats` beats. A tick is accented when
+ * `(beat - accentOffset)` starts a bar — use `accentOffset` for pickups.
+ * Without running audio it still returns a valid timeline, so visuals and
+ * scoring keep working silently.
  */
 export function startClickTrack({
   bpm,
   beats,
   beatsPerBar,
+  startBeat = 0,
+  accentOffset = 0,
   silent = false,
 }: {
   bpm: number;
   beats: number;
   beatsPerBar: number;
+  startBeat?: number;
+  accentOffset?: number;
   silent?: boolean;
 }): ClickTrack {
   const beatSec = 60 / bpm;
@@ -35,15 +43,19 @@ export function startClickTrack({
   if (audioNow === null || silent) return track;
 
   const zeroAudio = audioNow + LEAD_MS / 1000;
-  let next = 0;
+  const end = startBeat + beats;
+  let beat = Math.ceil(startBeat - 1e-6);
   const schedule = () => {
     const now = audioEngine.audioTime();
     if (now === null) return;
-    while (next < beats && zeroAudio + next * beatSec < now + LOOKAHEAD_SEC) {
-      audioEngine.click(zeroAudio + next * beatSec, next % beatsPerBar === 0);
-      next += 1;
+    while (beat < end - 1e-6) {
+      const time = zeroAudio + (beat - startBeat) * beatSec;
+      if (time >= now + LOOKAHEAD_SEC) break;
+      const inBar = (((beat - accentOffset) % beatsPerBar) + beatsPerBar) % beatsPerBar;
+      audioEngine.click(time, inBar === 0);
+      beat += 1;
     }
-    if (next >= beats) window.clearInterval(timer);
+    if (beat >= end - 1e-6) window.clearInterval(timer);
   };
   const timer = window.setInterval(schedule, TICK_MS);
   schedule();

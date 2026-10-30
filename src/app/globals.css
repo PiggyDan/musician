@@ -113,6 +113,24 @@
   }
 }
 
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000;
+  }
+  body::before {
+    display: none;
+  }
+  /* The practice/playback cursor is a screen-only aid. */
+  img[id^="cursorImg"] {
+    display: none !important;
+  }
+}
+
 /* Set by the inline locale script until the saved language has rendered. */
 html.locale-pending body > * {
   visibility: hidden;

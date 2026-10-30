@@ -10,11 +10,12 @@ export function SiteFooter() {
     { href: "/learn", label: t.nav.learn },
     { href: "/learn/piano", label: t.academy.title },
     { href: "/practice", label: t.nav.studio },
+    { href: "/sheet-music", label: t.nav.sheetMusic },
     { href: "/profile", label: t.nav.profile },
   ];
 
   return (
-    <footer className="relative z-10 mt-24 border-t border-white/[0.06]">
+    <footer className="relative z-10 mt-24 border-t border-white/[0.06] print:hidden">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr]">
         <div className="space-y-3">
           <Logo />
